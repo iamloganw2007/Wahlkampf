@@ -608,40 +608,43 @@ window.PARTY_MANDATE_PROFILES = {
   Union: [
     { cat:'economy',  label:'Economic Competitiveness', icon:'⚡', petition:'Voters demand corporate tax reform and cuts to business red tape.',    satisfiedBy:['taxcut','mittelstand','energysubsidy','digitgov','supplytaxcredit','freelance_relief'] },
     { cat:'security', label:'Border & Law Order',       icon:'🛡️', petition:'Supporters insist on tougher borders and police modernisation.',       satisfiedBy:['borderctrl','policeref','cybersec','nato2pct','civildefence'] },
+    { cat:'social',   label:'Bürgergeld Activation',    icon:'💼', petition:'Conservative voters want unemployment benefits tied more visibly to work, placement and fiscal discipline.', satisfiedBy:['buergergeld_lean','welfarework'] },
     { cat:'foreign',  label:'Atlantic Alliance',        icon:'🌍', petition:'Base wants firm NATO commitment and China trade diversification.',      satisfiedBy:['nato2pct','chinatrade','eudeep'] },
   ],
   CSU: [
     { cat:'economy',  label:'Bavarian Competitiveness', icon:'⚡', petition:'CSU supporters want tax relief, industrial stability and a business-friendly Bavaria-first message.', satisfiedBy:['taxcut','mittelstand','energysubsidy','supplytaxcredit','freelance_relief'] },
     { cat:'security', label:'Borders & Internal Order', icon:'🛡️', petition:'The base insists on tough migration control, strong policing and visible state authority.', satisfiedBy:['borderctrl','policeref','cybersec','civildefence','nato2pct'] },
+    { cat:'social',   label:'Bürgergeld Discipline',    icon:'💼', petition:'CSU networks want stronger obligations, faster job placement and a lower benefit trajectory.', satisfiedBy:['buergergeld_lean','welfarework'] },
     { cat:'social',   label:'Regional Stability',       icon:'🏘️', petition:'Local networks want practical family support, municipal strength and stable public services.', satisfiedBy:['housing','childcare','healthref','digitgov'] },
   ],
   SPD: [
-    { cat:'social',   label:'Social Justice',           icon:'👷', petition:'Workers demand housing, childcare and pension guarantees.',             satisfiedBy:['housing','childcare','pensionplus','rentfreeze','careworkers','tenantenergy'] },
-    { cat:'economy',  label:'Workers\' Rights',         icon:'💰', petition:'Trade unions push for minimum wage rise and welfare-to-work reform.',  satisfiedBy:['minwage','welfarework','autoinvest','abortion_decrim','skillscompact'] },
+    { cat:'social',   label:'Social Justice',           icon:'👷', petition:'Workers demand housing, childcare, pension guarantees and a stable Bürgergeld floor.', satisfiedBy:['housing','childcare','pensionplus','rentfreeze','careworkers','tenantenergy','buergergeld_standard','buergergeld_enhanced'] },
+    { cat:'economy',  label:'Workers\' Rights',         icon:'💰', petition:'Trade unions push for minimum wage rise, stronger training rights and fair unemployment benefits.',  satisfiedBy:['minwage','welfarework','autoinvest','abortion_decrim','skillscompact','buergergeld_enhanced'] },
     { cat:'reform',   label:'Democratic Reform',        icon:'⚖️', petition:'Members want lobbying transparency and educational modernisation.',     satisfiedBy:['lobbylaw','wahlrecht','bremseref'] },
   ],
   Greens: [
     { cat:'climate',  label:'Climate Action',           icon:'🌿', petition:'Activists demand renewables acceleration and carbon pricing now.',     satisfiedBy:['co2tax','renewfast','efuelban','buildclimate','gridstorage','floodresilience','cannabis_legal','harm_reduction'] },
-    { cat:'social',   label:'Housing & Childcare',      icon:'🏠', petition:'Supporters push for social housing and universal childcare.',          satisfiedBy:['housing','childcare','rentfreeze'] },
+    { cat:'social',   label:'Housing & Childcare',      icon:'🏠', petition:'Supporters push for social housing, universal childcare and poverty-proof Bürgergeld.', satisfiedBy:['housing','childcare','rentfreeze','buergergeld_enhanced','buergergeld_dignity'] },
     { cat:'foreign',  label:'EU Integration',           icon:'🌍', petition:'Members want deeper EU cooperation and development aid.',              satisfiedBy:['eudeep','aidboost','armexport'] },
   ],
   FDP: [
     { cat:'economy',  label:'Fiscal Freedom',           icon:'📉', petition:'Liberals demand corporate tax cuts and strict debt brake adherence.',  satisfiedBy:['taxcut','mittelstand','digitgov','energysubsidy','freelance_relief','supplytaxcredit'] },
     { cat:'reform',   label:'Deregulation & Reform',    icon:'📋', petition:'Business base wants red tape slashed and schools modernised for skills.', satisfiedBy:['federalref','wahlrecht','lobbylaw','termref'] },
+    { cat:'social',   label:'Activation & Incentives',  icon:'💼', petition:'Liberals want Bürgergeld redesigned around work incentives, lower fiscal drag and faster retraining.', satisfiedBy:['buergergeld_lean','welfarework'] },
     { cat:'security', label:'Digital Security',         icon:'💻', petition:'Liberals push for cybersecurity and digital infrastructure.',          satisfiedBy:['cybersec','policeref','chinatrade'] },
   ],
   Linke: [
-    { cat:'social',   label:'Wealth Redistribution',    icon:'✊', petition:'Activists demand rent caps, pension reform and social housing.',        satisfiedBy:['rentfreeze','pensionplus','housing','healthref','careworkers','tenantenergy'] },
+    { cat:'social',   label:'Wealth Redistribution',    icon:'✊', petition:'Activists demand rent caps, pension reform, social housing and a sanction-light Bürgergeld guarantee.', satisfiedBy:['rentfreeze','pensionplus','housing','healthref','careworkers','tenantenergy','buergergeld_enhanced','buergergeld_dignity'] },
     { cat:'reform',   label:'Debt Brake Reform',        icon:'🏛️', petition:'Left wants debt brake flexibility and stronger public education investment.', satisfiedBy:['bremseref','lobbylaw','wahlrecht','abortion_decrim','harm_reduction'] },
     { cat:'foreign',  label:'Peace & Disarmament',      icon:'🕊️', petition:'Base demands development aid increase and arms export restrictions.',  satisfiedBy:['aidboost','armexport','migrationlaw'] },
   ],
   BSW: [
-    { cat:'social',   label:'Social Protection First',  icon:'🧺', petition:'BSW supporters want pensions, housing and wage protection framed around economic security.', satisfiedBy:['rentfreeze','pensionplus','housing','careworkers','healthref'] },
+    { cat:'social',   label:'Social Protection First',  icon:'🧺', petition:'BSW supporters want pensions, housing, wage protection and reliable Bürgergeld framed around economic security.', satisfiedBy:['rentfreeze','pensionplus','housing','careworkers','healthref','buergergeld_standard','buergergeld_enhanced'] },
     { cat:'economy',  label:'Industrial Sovereignty',   icon:'🏭', petition:'The base wants state support for industry, cheaper energy and a harder line against deindustrialisation.', satisfiedBy:['energysubsidy','autoinvest','mittelstand','supplytaxcredit'] },
     { cat:'foreign',  label:'Peace Realism',            icon:'🕊️', petition:'Backers want a sceptical security line, fewer arms exports and a diplomacy-first message.', satisfiedBy:['aidboost','armexport','migrationlaw'] },
   ],
   SSW: [
-    { cat:'social',   label:'Minority Rights & Welfare', icon:'🌊', petition:'SSW voters want public services, welfare stability and minority protection in the north.', satisfiedBy:['housing','childcare','careworkers','pensionplus','tenantenergy'] },
+    { cat:'social',   label:'Minority Rights & Welfare', icon:'🌊', petition:'SSW voters want public services, welfare stability, fair Bürgergeld and minority protection in the north.', satisfiedBy:['housing','childcare','careworkers','pensionplus','tenantenergy','buergergeld_standard','buergergeld_enhanced'] },
     { cat:'reform',   label:'Federal Fairness',          icon:'⚖️', petition:'Supporters want minority rights, democratic reform and a less centralised Berlin.', satisfiedBy:['lobbylaw','wahlrecht','bremseref'] },
     { cat:'climate',  label:'Coastal Resilience',        icon:'🌬️', petition:'The party base wants climate adaptation, flood protection and renewable expansion in the north.', satisfiedBy:['renewfast','gridstorage','floodresilience','co2tax'] },
   ],
@@ -653,6 +656,7 @@ window.PARTY_MANDATE_PROFILES = {
   AfD: [
     { cat:'security', label:'Migration Control',        icon:'🛂', petition:'Voters demand border reinforcement and strict migration law.',          satisfiedBy:['borderctrl','migrationlaw','policeref','cybersec','civildefence'] },
     { cat:'economy',  label:'Industrial Protection',    icon:'🏭', petition:'Base wants energy subsidies and automotive industry support.',         satisfiedBy:['energysubsidy','autoinvest','mittelstand','taxcut','supplytaxcredit'] },
+    { cat:'social',   label:'Welfare Restrictions',     icon:'💼', petition:'Supporters want Bürgergeld cut back, stricter obligations and a sharper distinction between work and benefits.', satisfiedBy:['buergergeld_lean','welfarework'] },
     { cat:'climate',  label:'Nuclear & Energy Debate',  icon:'⚛️', petition:'Supporters push for nuclear extension review and ICE vehicle rights.', satisfiedBy:['nuclearrv','efuelban','co2tax','cannabis_repeal','drug_crackdown','abortion_restrict'] },
   ],
 };
