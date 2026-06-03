@@ -14,28 +14,6 @@ window.WAHLKAMPF_TABS.front = String.raw`
                 <div class="news-brief-dek">Read pressure, momentum, and governability directly from the national terrain instead of chasing detached cards.</div>
               </section>
 
-              <section class="news-brief news-brief-live">
-                <div class="news-brief-kicker">Live Desk</div>
-                <div class="news-brief-metrics">
-                  <div class="news-brief-stat">
-                    <div class="news-brief-label">Map Mode</div>
-                    <div class="news-brief-value">National battlefield</div>
-                  </div>
-                  <div class="news-brief-stat">
-                    <div class="news-brief-label">Turn Focus</div>
-                    <div class="news-brief-value">Narrative and turnout</div>
-                  </div>
-                  <div class="news-brief-stat">
-                    <div class="news-brief-label">Strategic Lens</div>
-                    <div class="news-brief-value">States and coalitions</div>
-                  </div>
-                  <div class="news-brief-stat">
-                    <div class="news-brief-label">Visual Priority</div>
-                    <div class="news-brief-value">Map first, UI second</div>
-                  </div>
-                </div>
-                <div class="news-brief-note">Use the stage to identify where momentum is genuinely moving before you commit your weekly actions.</div>
-              </section>
             </aside>
 
             <div class="hero-story-map">
@@ -114,20 +92,14 @@ window.WAHLKAMPF_TABS.front = String.raw`
             </div>
 
             <button class="campaign-advanced-toggle" id="campaign-advanced-toggle" onclick="toggleCampaignAdvancedControls()">
-              <div style="text-align:left;min-width:0;">
+                <div style="text-align:left;min-width:0;">
                 <div class="campaign-advanced-label">Advanced Campaign Controls</div>
-                <div class="campaign-advanced-summary" id="campaign-advanced-summary">Coalition posture, territorial focus, finance, and late attacks.</div>
+                <div class="campaign-advanced-summary" id="campaign-advanced-summary">Coalition posture, territorial focus, and late attacks.</div>
               </div>
               <div class="campaign-advanced-chevron" id="campaign-advanced-chevron">+</div>
             </button>
 
             <div class="campaign-advanced-panel" id="campaign-advanced-panel">
-              <div class="action-section">
-                <div class="action-section-title">Campaign Operation</div>
-                <div style="font-family:'Source Sans 3',sans-serif;font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.45;">Set the machine once and keep it running that way until you change course: turnout, surrogates, message discipline, rapid response, or local organizing.</div>
-                <div class="action-cards" id="operation-cards"></div>
-              </div>
-
               <div class="action-section">
                 <div class="action-section-title">Coalition Signal</div>
                 <div style="font-family:'Source Sans 3',sans-serif;font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.45;">German campaigns are also about governability. Decide whether to look open, careful, or confrontational this week.</div>
@@ -140,12 +112,6 @@ window.WAHLKAMPF_TABS.front = String.raw`
                 <div class="action-cards" id="territory-cards"></div>
               </div>
 
-              <div class="action-section">
-                <div class="action-section-title">Campaign Finance</div>
-                <div style="font-family:'Source Sans 3',sans-serif;font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.45;">Every campaign week costs money. Choose how the party funds its machine and live with the political trade-offs.</div>
-                <div class="action-cards" id="funding-cards"></div>
-              </div>
-
               <div class="action-section" id="attack-section" style="display:none;">
                 <div class="action-section-title" style="color:var(--accent);">Hot Phase</div>
                 <div style="font-family:'Source Sans 3',sans-serif;font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.45;">Final stretch tactics have modest effect. Use them sparingly.</div>
@@ -156,39 +122,6 @@ window.WAHLKAMPF_TABS.front = String.raw`
               <button class="turn-btn" id="turn-btn" onclick="executeTurn()">Advance Week</button>
               <button class="test-skip-btn" onclick="skipToElectionTest()">Skip To Election</button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="intel-strip">
-        <div class="intel-header">
-          <div class="intel-title">Campaign intelligence snapshot</div>
-          <span style="font-size:11px;color:#b7b0a4;">Updated each turn</span>
-        </div>
-        <div class="intel-grid">
-          <div class="intel-item">
-            <div class="intel-region">Message Discipline</div>
-            <div class="intel-status tense">Tense</div>
-            <div class="intel-note">Your issue mix and event selection are shaping the week’s dominant frame.</div>
-            <div class="intel-bar tense"></div>
-          </div>
-          <div class="intel-item">
-            <div class="intel-region">Ground Operations</div>
-            <div class="intel-status stable">Stable</div>
-            <div class="intel-note">Field work remains the most reliable route to incremental gains in target states.</div>
-            <div class="intel-bar stable"></div>
-          </div>
-          <div class="intel-item">
-            <div class="intel-region">Coalition Optics</div>
-            <div class="intel-status critical">Critical</div>
-            <div class="intel-note">Signals about governability can unlock or close off endgame pathways.</div>
-            <div class="intel-bar critical"></div>
-          </div>
-          <div class="intel-item">
-            <div class="intel-region">Debate Exposure</div>
-            <div class="intel-status tense">Tense</div>
-            <div class="intel-note">Public appearances remain high-impact in a volatile polling environment.</div>
-            <div class="intel-bar tense"></div>
           </div>
         </div>
       </div>
@@ -213,46 +146,6 @@ window.WAHLKAMPF_TABS.front = String.raw`
                 <svg id="parliament-svg" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;"></svg>
               </div>
               <div class="majority-indicator" id="majority-indicator">Majority: 316 seats</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="events-panel">
-          <div class="event-list">
-            <div class="event-header">
-              <div class="event-header-label">Campaign Playbook</div>
-            </div>
-            <div class="event-item">
-              <div class="event-flag" style="background:#E3120B;"></div>
-              <div class="event-date">Lead</div>
-              <div class="event-body">
-                <div class="event-title">Open with the week’s biggest narrative choice</div>
-                <div class="event-loc">Events and policy emphasis set the front-page frame.</div>
-              </div>
-            </div>
-            <div class="event-item">
-              <div class="event-flag" style="background:#d9a657;"></div>
-              <div class="event-date">Target</div>
-              <div class="event-body">
-                <div class="event-title">Match your message to the demographic you most need</div>
-                <div class="event-loc">Momentum usually comes from alignment, not noise.</div>
-              </div>
-            </div>
-            <div class="event-item">
-              <div class="event-flag" style="background:#3c7ab8;"></div>
-              <div class="event-date">Map</div>
-              <div class="event-body">
-                <div class="event-title">Use territorial focus to decide where the machine leans in</div>
-                <div class="event-loc">Marginals, strongholds, turnout belts, and threshold survival all play differently.</div>
-              </div>
-            </div>
-            <div class="event-item">
-              <div class="event-flag" style="background:#2b8a57;"></div>
-              <div class="event-date">Close</div>
-              <div class="event-body">
-                <div class="event-title">Advance the week only after checking polling and seat math</div>
-                <div class="event-loc">Every turn rewrites coalition possibilities.</div>
-              </div>
             </div>
           </div>
         </div>
