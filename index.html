@@ -198,6 +198,7 @@ body.prelaunch-lock {
 /* ===== SCREENS ===== */
 .screen { display: none; min-height: 100vh; }
 .screen.active { display: flex; flex-direction: column; }
+#game.screen:not(.active) { display: none; }
 
 /* ===== INTRO SCREEN ===== */
 #intro {
@@ -336,7 +337,8 @@ body.prelaunch-lock {
 
 #issue-select {
   min-height: 100vh;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   max-height: 100vh;
 }
 
@@ -3669,6 +3671,10 @@ body.light-mode .leaflet-tile { filter: saturate(0.88) brightness(1.02); }
   display: block;
   height: auto;
   overflow: visible;
+}
+
+#game.screen:not(.active) {
+  display: none;
 }
 
 .dispatch-topbar {
@@ -8321,16 +8327,11 @@ function getCampaignResourceSnapshot(partyId) {
 }
 
 function createDefaultCampaignTreasury(partyId) {
-  const basePolling = Number(getBasePolling(partyId) || 10);
-  return Math.round(34 + basePolling * 2.4);
+  return 0;
 }
 
 function initCampaignTreasury() {
-  const treasury = {};
-  getActivePartyData(gameState.electionYear).forEach(party => {
-    treasury[party.id] = createDefaultCampaignTreasury(party.id);
-  });
-  gameState.campaignTreasury = treasury;
+  gameState.campaignTreasury = {};
 }
 
 function ensureCampaignTreasuryState() {
@@ -8346,19 +8347,15 @@ function ensureCampaignTreasuryState() {
 }
 
 function getCampaignTreasury(partyId) {
-  ensureCampaignTreasuryState();
-  return Number(gameState.campaignTreasury?.[partyId] || 0);
+  return 0;
 }
 
 function addCampaignTreasury(partyId, delta) {
-  if (!partyId || !Number.isFinite(Number(delta))) return;
-  ensureCampaignTreasuryState();
-  gameState.campaignTreasury[partyId] = Math.max(0, Math.round((Number(gameState.campaignTreasury?.[partyId] || 0) + Number(delta)) * 10) / 10);
+  return;
 }
 
 function playerHasMinisterialAccessForCampaignAbuse() {
-  if (!govState || !Array.isArray(govState.coalitionParties) || !govState.coalitionParties.includes(gameState.playerParty)) return false;
-  return Object.values(govState.cabinet || {}).some(pol => pol && pol.partyId === gameState.playerParty);
+  return false;
 }
 
 function initTerritorialFocusState() {
@@ -8614,32 +8611,15 @@ function getMediaCycleForWeek(week = gameState.currentWeek || 0) {
 }
 
 function getAvailableCampaignFinanceOptions(partyId = gameState.playerParty) {
-  return CAMPAIGN_FINANCE_OPTIONS.filter(option => {
-    if (!option.ministerOnly) return true;
-    return partyId === gameState.playerParty && playerHasMinisterialAccessForCampaignAbuse();
-  });
+  return [];
 }
 
 function getCampaignFinanceOptionById(optionId, partyId = gameState.playerParty) {
-  const available = getAvailableCampaignFinanceOptions(partyId);
-  return available.find(option => option.id === optionId)
-    || (partyId !== gameState.playerParty ? CAMPAIGN_FINANCE_OPTIONS.find(option => option.id === optionId) : null)
-    || null;
+  return null;
 }
 
 function getCampaignActionCost({ event = null, policy = null, operation = null, territorialFocus = null, coalitionPosture = null, attack = false } = {}) {
-  let cost = 11;
-  cost += event ? Math.round((Number(event.boost || 0) * 10) + 2) : 0;
-  cost += policy ? 5 : 0;
-  cost += operation ? Math.round((Number(operation.boost || 0) * 14) + 3) : 0;
-  if (territorialFocus?.id === 'national') cost += 3;
-  if (territorialFocus?.id === 'marginals') cost += 8;
-  if (territorialFocus?.id === 'strongholds') cost += 6;
-  if (territorialFocus?.id === 'turnout') cost += 7;
-  if (territorialFocus?.id === 'threshold') cost += 5;
-  if (coalitionPosture?.id === 'sharp') cost += 2;
-  if (attack) cost += 4;
-  return Math.max(12, cost);
+  return 0;
 }
 
 function getCampaignCardCost(type, item) {
@@ -8652,56 +8632,7 @@ function getCampaignCardCost(type, item) {
 }
 
 function applyCampaignFinancePlan(partyId, financeOption, cost, week, addDriver) {
-  ensureCampaignTreasuryState();
-  let gain = Number(financeOption?.amount || 0);
-  let scandal = null;
-
-  if (financeOption?.id === 'dues') gain += Math.max(0, (getCampaignResourceValue(partyId, 'volunteerEnergy') - 0.45) * 10);
-  if (financeOption?.id === 'smalldollar') gain += Math.max(0, (getCampaignResourceValue(partyId, 'messageClarity') - 0.45) * 12);
-  if (financeOption?.id === 'corporate') gain += Math.max(0, (getCampaignResourceValue(partyId, 'money') - 0.45) * 8);
-
-  addCampaignTreasury(partyId, gain - cost);
-  const treasuryAfter = getCampaignTreasury(partyId);
-  if (treasuryAfter >= 70) nudgeCampaignResource(partyId, 'money', 0.04);
-  else if (treasuryAfter >= 45) nudgeCampaignResource(partyId, 'money', 0.02);
-  else if (treasuryAfter <= 10) nudgeCampaignResource(partyId, 'money', -0.06);
-  else if (treasuryAfter <= 20) nudgeCampaignResource(partyId, 'money', -0.03);
-  nudgeCredibility(partyId, financeOption?.credibility || 0);
-  nudgeCoalitionSignal(partyId, financeOption?.coalition || 0);
-  nudgeCampaignResource(partyId, 'volunteerEnergy', financeOption?.volunteers || 0);
-  nudgeCampaignResource(partyId, 'turnout', financeOption?.turnout || 0);
-  nudgeCampaignResource(partyId, 'mediaHeat', financeOption?.media || 0);
-
-  const financeEffect = clamp(-0.18, 0.18,
-    Number(financeOption?.credibility || 0) * 1.5
-    + Number(financeOption?.volunteers || 0) * 1.4
-    + Number(financeOption?.turnout || 0) * 1.2
-    + Number(financeOption?.coalition || 0) * 0.9
-    - (financeOption?.id === 'corporate' ? 0.03 : 0)
-    - (financeOption?.id === 'embezzle' ? 0.06 : 0)
-  );
-  if (addDriver) addDriver('campaign finance', financeEffect, `${financeOption?.name || 'Funding'} · raised ${gain.toFixed(1)} · spent ${cost.toFixed(1)}`);
-
-  if (financeOption?.id === 'embezzle') {
-    const catchRisk = Math.max(0.12, 0.24 - Math.max(0, (Number(gameState.messageCredibility?.[partyId] || 0)) * 0.08) + Math.max(0, week - 6) * 0.006);
-    if (Math.random() < catchRisk) {
-      scandal = { caught: true, risk: catchRisk };
-      const hit = 1.0 + Math.random() * 0.9;
-      if (addDriver) addDriver('embezzlement scandal', -hit, 'state resources diverted into campaigning were exposed');
-      nudgeLeaderApproval(partyId, -5.2);
-      nudgeCredibility(partyId, -0.18);
-      nudgeDiscipline(partyId, -0.08);
-      nudgeCoalitionSignal(partyId, -0.12);
-      if (govState?.publicApproval !== undefined && playerHasMinisterialAccessForCampaignAbuse()) {
-        govState.publicApproval = Math.max(5, govState.publicApproval - 6);
-        govState.partyApproval[partyId] = Math.max(10, (govState.partyApproval?.[partyId] || 55) - 8);
-      }
-      addCampaignTreasury(partyId, -8);
-      return { net: gain - cost - 8, scandalDelta: -hit, caught: true };
-    }
-  }
-
-  return { net: gain - cost, scandalDelta: 0, caught: false };
+  return { net: 0, scandalDelta: 0, caught: false };
 }
 
 function applyCampaignEmergencyBackstop(partyId, shortage, addDriver = null) {
@@ -8906,12 +8837,7 @@ const TERRITORIAL_FOCUS_OPTIONS = [
   { id: 'threshold', name: '🚨 Threshold Rescue', desc: 'Signal that every list vote matters for survival, tactical relevance, and negotiating power.', effect: 'Useful near 5%, but can hurt big-party breadth.' },
 ];
 
-const CAMPAIGN_FINANCE_OPTIONS = [
-  { id: 'dues', name: '👥 Membership Dues', desc: 'Lean on the party base, branch collections, and regular monthly dues.', effect: 'Steady money, small grassroots morale boost.', amount: 10, credibility: 0.02, volunteers: 0.02, coalition: 0.01 },
-  { id: 'smalldollar', name: '📲 Small-Donor Fundraising', desc: 'Blast email lists and digital channels for many modest donations.', effect: 'Good money with trust and turnout upside if the ask lands.', amount: 16, credibility: 0.03, volunteers: 0.03, turnout: 0.02, media: 0.01 },
-  { id: 'corporate', name: '🏢 Large Corporate Money', desc: 'Secure major backing from firms, industry networks, and wealthy donors.', effect: 'Big money, but opponents can paint you as captured.', amount: 24, credibility: -0.05, coalition: -0.03, media: 0.03 },
-  { id: 'embezzle', name: '🕳️ Abuse Ministry Funds', desc: 'Quietly divert state resources into the campaign machine while hoping nobody notices.', effect: 'Huge cash, huge scandal risk if exposed.', amount: 30, credibility: -0.10, coalition: -0.08, media: 0.08, ministerOnly: true },
-];
+const CAMPAIGN_FINANCE_OPTIONS = [];
 
 const PARTY_CONFERENCE_RESOLUTIONS = [
   { id: 'competence', label: '🧾 Competence & Delivery', desc: 'Promise seriousness, delivery, and a clean governing image.', topics: ['leadership', 'economy', 'reform'], credibility: 0.08, discipline: 0.06, coalition: 0.08, leader: 1.2, bloc: 'seniors', region: 'WEST', partyBonuses: { Union: 0.05, SPD: 0.04, FDP: 0.03 } },
@@ -9679,6 +9605,7 @@ const LEGISLATIVE_STATE_DEFAULTS = {
   cannabis: 'criminalized',
   hard_drugs: 'criminalized',
   abortion: 'restricted',
+  buergergeld: 'standard',
 };
 
 function ensureLegislativeState() {
@@ -9971,9 +9898,15 @@ function showScreen(id) {
     activateGovernanceInGame();
     return;
   }
+  if (['intro', 'party-select', 'issue-select', 'debate', 'result'].includes(id)) {
+    if (gameState) gameState._gameShellMode = 'campaign';
+    configureGameShellForMode('campaign');
+  }
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  setBodyScrollLock(id === 'intro' || id === 'party-select' || id === 'issue-select' || id === 'debate' || id === 'result');
+  const lockedScreen = id === 'intro' || id === 'party-select' || id === 'issue-select' || id === 'debate' || id === 'result';
+  if (lockedScreen) window.scrollTo(0, 0);
+  setBodyScrollLock(lockedScreen);
   if (id === 'result') playElectionNightAudio();
   else stopElectionNightAudio();
   // Leaflet loses its size when the container was hidden — re-sync after the
@@ -10226,7 +10159,7 @@ function startCampaign() {
   if (!selectedPartyId) return;
   if (!gameState.playerCharacter || typeof gameState.playerCharacter !== 'object') {
     gameState.playerCharacter = {
-      name: 'Campaign Director',
+      name: 'Unnamed Strategist',
       portrait: '🧑',
       archetype: 'Operator',
       homeRegion: 'West',
@@ -11882,7 +11815,6 @@ function getCampaignSelectionLabel(type, id) {
   if (!id) return 'auto';
   if (type === 'coalition') return COALITION_POSTURES.find(item => item.id === id)?.label || id;
   if (type === 'territorial') return TERRITORIAL_FOCUS_OPTIONS.find(item => item.id === id)?.label || id;
-  if (type === 'funding') return getCampaignFinanceOptionById(id, gameState.playerParty)?.label || id;
   if (type === 'attack') return (CAMPAIGN_ATTACKS || []).find(item => item.id === id)?.label || id;
   return id;
 }
@@ -11898,7 +11830,6 @@ function updateCampaignAdvancedControlsUI() {
   const bits = [
     `Coalition: ${getCampaignSelectionLabel('coalition', gameState.selectedCoalitionPosture || 'conditional')}`,
     `Territory: ${getCampaignSelectionLabel('territorial', gameState.selectedTerritorialFocus || 'national')}`,
-    `Finance: ${getCampaignSelectionLabel('funding', gameState.selectedFundingStrategy || 'dues')}`,
   ];
   if (gameState.selectedAttack) bits.push(`Attack: ${getCampaignSelectionLabel('attack', gameState.selectedAttack)}`);
   summary.textContent = bits.join('  ·  ');
@@ -12203,7 +12134,6 @@ function buildWeekUI() {
   const metaSnapshot = getCampaignMetaSnapshot(gameState.playerParty);
   const retrospectiveSnapshot = getRetrospectiveDisplaySnapshot(gameState.playerParty);
   const mandate = gameState.campaignMandates?.[gameState.playerParty];
-  const treasuryAmount = Math.round(getCampaignTreasury(gameState.playerParty));
   const issueLabel = metaSnapshot.topIssue ? metaSnapshot.topIssue.topic[0].toUpperCase() + metaSnapshot.topIssue.topic.slice(1) : '—';
   const blocLabel = metaSnapshot.bestBloc ? metaSnapshot.bestBloc.name.replace(/^[^\s]+\s/, '') : '—';
   const regionLabel = metaSnapshot.topRegion ? metaSnapshot.topRegion.id.toUpperCase() : '—';
@@ -12220,7 +12150,6 @@ function buildWeekUI() {
       </div>
       ${renderDriverEntriesHTML(campaignSummary.entries, 'Play the first week to start building a visible poll explanation.')}
       <div class="sidebar-brief-grid" style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(23,32,43,0.08);">
-        <div class="sidebar-brief-stat"><div class="sidebar-brief-label">Campaign treasury</div><div class="sidebar-brief-value">€${treasuryAmount}m available</div></div>
         <div class="sidebar-brief-stat"><div class="sidebar-brief-label">Your mandate</div><div class="sidebar-brief-value">${mandate ? `${mandate.icon} ${mandate.label}` : '—'}</div></div>
         <div class="sidebar-brief-stat"><div class="sidebar-brief-label">Most Credibile Issue</div><div class="sidebar-brief-value">${issueLabel}${metaSnapshot.topIssue ? ` · ${Math.round(metaSnapshot.topIssue.value * 100)}%` : ''}</div></div>
         <div class="sidebar-brief-stat"><div class="sidebar-brief-label">Coalition read</div><div class="sidebar-brief-value">${coalitionLabel}</div></div>
@@ -12242,10 +12171,9 @@ function buildWeekUI() {
   } else {
     const pressure = getCampaignPressureSnapshot(gameState.playerParty);
     fairnessEl.innerHTML = `
-      <div class="sidebar-brief-title">Campaign Read</div>
+      <div class="sidebar-brief-title">Weekly Movement</div>
       <div class="sidebar-brief-value" style="color:var(--muted);font-size:11px;">Opening polls stay closer to base support, and weekly movement will explain its biggest drivers here.</div>
       <div class="sidebar-brief-grid" style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(23,32,43,0.08);">
-        <div class="sidebar-brief-stat"><div class="sidebar-brief-label">Campaign treasury</div><div class="sidebar-brief-value">€${treasuryAmount}m available</div></div>
         <div class="sidebar-brief-stat"><div class="sidebar-brief-label">Your mandate</div><div class="sidebar-brief-value">${mandate ? `${mandate.icon} ${mandate.label}` : '—'}</div></div>
         <div class="sidebar-brief-stat"><div class="sidebar-brief-label">Owned lane</div><div class="sidebar-brief-value">${issueLabel}${metaSnapshot.topIssue ? ` · ${Math.round(metaSnapshot.topIssue.value * 100)}%` : ''}</div></div>
         <div class="sidebar-brief-stat"><div class="sidebar-brief-label">Coalition read</div><div class="sidebar-brief-value">${coalitionLabel}</div></div>
@@ -12283,10 +12211,10 @@ function buildWeekUI() {
   buildActionCards('event-cards', weekEvents, 'event');
   buildActionCards('demo-cards', DEMOGRAPHICS, 'demo');
   buildActionCards('policy-cards', weekPolicies, 'policy');
-  buildActionCards('operation-cards', availableOperations, 'operation');
+  if (document.getElementById('operation-cards')) buildActionCards('operation-cards', availableOperations, 'operation');
   buildActionCards('coalition-cards', COALITION_POSTURES, 'coalition');
   buildActionCards('territory-cards', TERRITORIAL_FOCUS_OPTIONS, 'territorial');
-  buildActionCards('funding-cards', getAvailableCampaignFinanceOptions(gameState.playerParty), 'funding');
+  if (document.getElementById('funding-cards')) buildActionCards('funding-cards', getAvailableCampaignFinanceOptions(gameState.playerParty), 'funding');
 
   // Party-specific signature event — inject into event-cards as a premium option
   const sigEvent = getPartySpecificEvent(gameState.playerParty, week);
@@ -12302,7 +12230,6 @@ function buildWeekUI() {
         ${sigEvent.name}
       </div>
       <div class="action-card-desc">${sigEvent.desc}</div>
-      <div class="action-card-effect">Cost: €${Math.round(getCampaignCardCost('event', sigEvent) || 0)}m</div>
       ${gameState.phase !== 'campaign' && false ? `<div class="action-card-effect" style="color:var(--player-color,var(--accent));">→ ${sigEvent.effect}</div>` : ''}
     `;
     sigCard.onclick = () => selectAction('event', sigEvent.id, sigCard, 'event-cards');
@@ -12313,14 +12240,10 @@ function buildWeekUI() {
   gameState.selectedEvent = null;
   gameState.selectedDemo = null;
   gameState.selectedPolicy = null;
-  if (!getCampaignOperationById(gameState.selectedOperation, gameState.electionYear)) {
-    gameState.selectedOperation = availableOperations[0]?.id || null;
-  }
+  gameState.selectedOperation = null;
   gameState.selectedCoalitionPosture = gameState.selectedCoalitionPosture || 'conditional';
   gameState.selectedTerritorialFocus = gameState.selectedTerritorialFocus || 'national';
-  if (!getCampaignFinanceOptionById(gameState.selectedFundingStrategy, gameState.playerParty)) {
-    gameState.selectedFundingStrategy = 'dues';
-  }
+  gameState.selectedFundingStrategy = null;
   gameState.selectedAttack = null;
 
   const defaultOperationCard = Array.from(document.querySelectorAll('#operation-cards .action-card')).find(card => card.dataset.actionId === gameState.selectedOperation);
@@ -12455,8 +12378,6 @@ function buildActionCards(containerId, items, type) {
         ${item.name}
       </div>
       <div class="action-card-desc">${item.desc || ''}</div>
-      ${cardCost !== null ? `<div class="action-card-effect">Cost: €${Math.round(cardCost)}m</div>` : ''}
-      ${type === 'funding' ? `<div class="action-card-effect">${item.ministerOnly ? 'Ministry access required · ' : ''}+€${Math.round(item.amount)}m</div>` : ''}
       ${item.effect && !hidingEffects ? `<div class="action-card-effect">→ ${item.effect}</div>` : ''}
     `;
     card.onclick = () => selectAction(type, item.id, card, containerId);
@@ -12546,8 +12467,8 @@ function getWeekDate(week) {
 // ===========================
 
 function executeTurn() {
-  if (!gameState.selectedEvent || !gameState.selectedDemo || !gameState.selectedPolicy || !gameState.selectedOperation || !gameState.selectedTerritorialFocus || !gameState.selectedFundingStrategy) {
-    showNotification('INCOMPLETE', 'You must choose a Campaign Event, Target Demographic, Policy, Campaign Operation, Territorial Focus, and Campaign Finance plan before advancing.', 'bad');
+  if (!gameState.selectedEvent || !gameState.selectedDemo || !gameState.selectedPolicy || !gameState.selectedTerritorialFocus) {
+    showNotification('INCOMPLETE', 'You must choose a Campaign Event, Target Demographic, Policy, and Territorial Focus before advancing.', 'bad');
     return;
   }
 
@@ -12575,15 +12496,10 @@ function executeTurn() {
   const operation = getCampaignOperationById(gameState.selectedOperation, gameState.electionYear);
   const coalitionPosture = COALITION_POSTURES.find(p => p.id === (gameState.selectedCoalitionPosture || 'conditional')) || COALITION_POSTURES[1];
   const territorialFocus = TERRITORIAL_FOCUS_OPTIONS.find(option => option.id === (gameState.selectedTerritorialFocus || 'national')) || TERRITORIAL_FOCUS_OPTIONS[0];
-  const fundingPlan = getCampaignFinanceOptionById(gameState.selectedFundingStrategy, gameState.playerParty);
+  const fundingPlan = null;
   const mediaCycle = getMediaCycleForWeek(week);
   const dominantNarrative = getDominantCampaignNarrative(week);
   const actionTopics = getCampaignActionTopics({ event, policy, operation, issue, dominantIssue: dominantElectionIssue });
-  if (!fundingPlan) {
-    showNotification('FINANCE PLAN INVALID', 'This funding option is not available in the current campaign context. Pick another funding source.', 'bad');
-    document.getElementById('turn-btn').disabled = false;
-    return;
-  }
   const weeklyActionCost = getCampaignActionCost({
     event,
     policy,
@@ -12592,8 +12508,7 @@ function executeTurn() {
     coalitionPosture,
     attack: !!gameState.selectedAttack,
   });
-  const projectedMoney = getCampaignTreasury(gameState.playerParty) + Number(fundingPlan?.amount || 0) - weeklyActionCost;
-  const emergencyShortfall = projectedMoney < 0 ? Math.abs(projectedMoney) : 0;
+  const emergencyShortfall = 0;
 
   // Event boost — same raw value as AI uses (AI multiplies by 0.6; player gets full event
   // because they actively choose, but policy is reduced so total stays competitive).
@@ -12720,16 +12635,6 @@ function executeTurn() {
   playerBoost += mediaCycleBoost;
   addCampaignDriver('media cycle', mediaCycleBoost, mediaCycle?.label || 'weekly press frame');
   const financeOutcome = applyCampaignFinancePlan(gameState.playerParty, fundingPlan, weeklyActionCost, week, addCampaignDriver);
-  if (emergencyShortfall > 0) {
-    const backstop = applyCampaignEmergencyBackstop(gameState.playerParty, emergencyShortfall, addCampaignDriver);
-    if (backstop) {
-      showNotification('EMERGENCY CAMPAIGN FINANCE', `${backstop.label} covered a €${backstop.amount}m gap so the campaign could keep moving.`, 'neutral');
-    }
-  }
-  if (financeOutcome.caught) {
-    showNotification('⚠ ILLEGAL CAMPAIGN FUNDING EXPOSED', 'Journalists uncovered diverted state resources flowing into the campaign. Trust and governing credibility take a serious hit.', 'bad');
-    playerBoost += financeOutcome.scandalDelta;
-  }
   const resourceEntries = applyCampaignResourceShifts(gameState.playerParty, {
     event,
     operation,
@@ -13205,12 +13110,7 @@ function runAITurns(issue) {
     const aiPolicy = aiPolicyId ? getPolicyById(aiPolicyId, gameState.electionYear) : null;
     const aiDemo = pickPreferredAIOption(DEMOGRAPHICS, demo => archetype.demos.includes(demo.id)) || DEMOGRAPHICS[0];
     const aiCoalitionPosture = COALITION_POSTURES.find(posture => posture.id === archetype.coalition) || COALITION_POSTURES[1];
-    const aiFundingPlan = (() => {
-      if (currentPoll >= 4.2 && currentPoll <= 6.6) return getCampaignFinanceOptionById('smalldollar', party.id);
-      if (party.id === 'Union' || party.id === 'FDP') return getCampaignFinanceOptionById('corporate', party.id);
-      if (party.id === 'SPD' || party.id === 'Greens' || party.id === 'Linke') return getCampaignFinanceOptionById('smalldollar', party.id);
-      return getCampaignFinanceOptionById('dues', party.id);
-    })();
+    const aiFundingPlan = null;
     const aiTerritorialFocus = (() => {
       if (currentPoll >= 4.2 && currentPoll <= 6.8) return TERRITORIAL_FOCUS_OPTIONS.find(option => option.id === 'threshold');
       if (week >= gameState.maxWeeks - 4 && ['SPD', 'Greens', 'Union', 'Linke'].includes(party.id)) return TERRITORIAL_FOCUS_OPTIONS.find(option => option.id === 'turnout');
@@ -13364,8 +13264,7 @@ function runAITurns(issue) {
     const weekLabel = boost > 0.38 ? ' — <span style="color:#3a9a3a">strong week</span>'
                     : boost < -0.25 ? ' — <span style="color:var(--accent)">tough week</span>' : '';
     const territoryLabel = aiTerritorialFocus ? ` · ${aiTerritorialFocus.name}` : '';
-    const fundingLabel = aiFundingPlan ? ` · ${aiFundingPlan.name}` : '';
-    actions.push(`<div class="ai-log-entry"><span class="ai-name">${party.name}</span> ${eventLabel}${operationLabel}${policyLabel}${blocLabel}${postureLabel}${territoryLabel}${fundingLabel} in ${randomPlace}${weekLabel}</div>`);
+    actions.push(`<div class="ai-log-entry"><span class="ai-name">${party.name}</span> ${eventLabel}${operationLabel}${policyLabel}${blocLabel}${postureLabel}${territoryLabel} in ${randomPlace}${weekLabel}</div>`);
 
     // ── INTER-PARTY ATTACKS: start earlier (week 10) with higher frequency ──────
     const AI_INTER_ATTACK_START = gameState.maxWeeks - 6;
@@ -13463,15 +13362,7 @@ function updateHUD() {
     mandateEl.remove();
   }
   let treasuryEl = document.getElementById('hud-treasury');
-  if (!treasuryEl) {
-    treasuryEl = document.createElement('div');
-    treasuryEl.id = 'hud-treasury';
-    treasuryEl.style.cssText = 'margin-top:8px;padding:6px 10px;background:rgba(255,255,255,0.04);border-left:2px solid var(--gold);font-family:Space Mono,monospace;font-size:9px;line-height:1.5;';
-  }
-  const treasuryHost = document.getElementById('game-hud-under-poll');
-  if (treasuryHost && treasuryEl.parentElement !== treasuryHost) treasuryHost.appendChild(treasuryEl);
-  treasuryEl.innerHTML = `<span style="color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Campaign Treasury</span><br>
-    <span style="color:var(--text);font-size:10px;">€${Math.round(getCampaignTreasury(gameState.playerParty))}m available</span>`;
+  if (treasuryEl) treasuryEl.remove();
 
   // Update poll board
   const rows = getPollingDisplayRows(gameState.polls, {
@@ -13633,6 +13524,12 @@ function updateSeatBar() {
   if (qualifying.length > 0) {
     const firstSeatKey = qualifying[0].id === UNION_POLLING_DISPLAY_ID ? 'Union' : qualifying[0].id;
     seats[firstSeatKey] += TOTAL - seatSum;
+  }
+  if (seats.SSW > 3) {
+    const excess = seats.SSW - 3;
+    seats.SSW = 3;
+    const recipients = Object.keys(seats).filter(id => id !== 'SSW' && seats[id] > 0).sort((a, b) => seats[b] - seats[a]);
+    for (let i = 0; i < excess && recipients.length; i++) seats[recipients[i % recipients.length]] += 1;
   }
 
   // Skip expensive SVG redraw if seat distribution is unchanged
@@ -14503,6 +14400,14 @@ function calculateSeatsFromPolls(polls) {
   let seatTotal = Object.values(seats).reduce((a, b) => a + b, 0);
   if (sortedBySeats.length > 0 && seatTotal > TOTAL_SEATS) seats[sortedBySeats[0][0]] -= (seatTotal - TOTAL_SEATS);
   if (sortedBySeats.length > 0 && seatTotal < TOTAL_SEATS) seats[sortedBySeats[0][0]] += (TOTAL_SEATS - seatTotal);
+  if (seats.SSW > 3) {
+    const excess = seats.SSW - 3;
+    seats.SSW = 3;
+    const recipients = Object.keys(seats).filter(id => id !== 'SSW' && seats[id] > 0).sort((a, b) => seats[b] - seats[a]);
+    for (let i = 0; i < excess && recipients.length; i++) {
+      seats[recipients[i % recipients.length]] += 1;
+    }
+  }
   return { seats, totalSeats: TOTAL_SEATS, threshold: THRESHOLD, directMandates };
 }
 
@@ -15694,7 +15599,7 @@ function openCoalitionScreen(options = {}) {
   coalState.currentCounterProposal = null;
   coalState.rejectedPartners = new Set();
   coalState.negotiationLog = [];
-  coalState.playerCoalitionStance = options.playerCoalitionStance || null;
+  coalState.playerCoalitionStance = options.playerCoalitionStance || 'open';
   resetCoalitionProcessState();
 
   gameState._resultScreenMode = 'election';
@@ -15708,6 +15613,9 @@ function openCoalitionScreen(options = {}) {
 }
 
 function renderCoalitionEntryChoice() {
+  const card = document.getElementById('coalition-entry-card');
+  if (card) card.style.display = 'none';
+  coalState.playerCoalitionStance = 'open';
   const copy = document.getElementById('coalition-entry-copy');
   const openBtn = document.getElementById('coalition-open-btn');
   const declineBtn = document.getElementById('coalition-decline-btn');
@@ -16425,6 +16333,7 @@ function renderCoalitionLog() {
     const label = entry.accepted ? 'ACCEPTED' : 'REJECTED';
     return `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:11px;line-height:1.5;">
       <div style="font-family:'Space Mono',monospace;font-size:9px;color:${color};margin-bottom:3px;">${label} · ${p?.name || entry.partyId} · score ${Math.round(entry.score)}/${Math.round(entry.threshold)}</div>
+      ${entry.coalitionName ? `<div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text);margin-bottom:3px;">Draft assessed: ${entry.coalitionName}</div>` : ''}
       <div style="color:var(--muted);">${entry.summary}</div>
     </div>`;
   }).join('');
@@ -17015,6 +16924,7 @@ function sendCoalitionOffer() {
       accepted: assessment.accepted,
       score: assessment.score,
       threshold: assessment.threshold,
+      coalitionName: getCoalitionName(getDraftCoalitionPartyIds(true)),
       summary: assessment.summary,
     });
 
@@ -18210,6 +18120,10 @@ const BILL_ECON_EFFECTS = {
   pensionplus:  { debtGdp: +0.70,  inflation: +0.10, gdpGrowth: +0.04, unemployment: 0,   investment: 0    },
   healthref:    { debtGdp: +0.20,  gdpGrowth: +0.05, unemployment: -0.03, inflation: 0,   investment: +0.05 },
   welfarework:  { unemployment: -0.12, gdpGrowth: +0.05, debtGdp: -0.20,  inflation: 0,   investment: 0    },
+  buergergeld_lean:{ unemployment: -0.05, gdpGrowth: -0.02, debtGdp: -0.35, inflation: -0.03, investment: 0 },
+  buergergeld_standard:{ unemployment: -0.03, gdpGrowth: +0.02, debtGdp: +0.05, inflation: 0, investment: 0 },
+  buergergeld_enhanced:{ unemployment: -0.04, gdpGrowth: +0.05, debtGdp: +0.35, inflation: +0.04, investment: 0 },
+  buergergeld_dignity:{ unemployment: -0.02, gdpGrowth: +0.06, debtGdp: +0.75, inflation: +0.07, investment: -0.02 },
   rentfreeze:   { inflation: -0.15, gdpGrowth: +0.03, debtGdp: 0,         investment: -0.05, unemployment: 0 },
   longtermcare: { debtGdp: +0.60,  gdpGrowth: +0.04, unemployment: -0.06, inflation: +0.05, investment: +0.08 },
   youthbasic:   { debtGdp: +0.55,  gdpGrowth: +0.06, inflation: +0.08, unemployment: -0.03, investment: 0    },
@@ -19040,64 +18954,7 @@ function executeMinisterTask(ministryId, taskId) {
 }
 
 function executeMinisterEmbezzlement(ministryId) {
-  const minister = govState.cabinet?.[ministryId];
-  if (!minister) return;
-  if (minister.partyId !== gameState.playerParty) {
-    showNotification('⛔ NOT YOUR MINISTER',
-      `${minister.name} serves ${PARTY_DATA.find(p=>p.id===minister.partyId)?.name||minister.partyId}. You can only direct ministers from your own party.`, 'bad');
-    return;
-  }
-  if (!govState._ministerTaskCooldowns) govState._ministerTaskCooldowns = {};
-  const quarterLockKey = `${ministryId}__quarterLock`;
-  const lastQuarterAction = govState._ministerTaskCooldowns[quarterLockKey] ?? -99;
-  if (lastQuarterAction === govState.quarter) {
-    showNotification('📆 MINISTER ALREADY USED',
-      `You can only order one cabinet action per minister each quarter. ${minister.name} has already acted this quarter.`, 'bad');
-    return;
-  }
-
-  govState._ministerTaskCooldowns[quarterLockKey] = govState.quarter;
-  const profile = getMinisterGovernanceProfile(ministryId, minister);
-  const amount = Math.round(10 + (profile.competence * 5) + (profile.resilience * 3));
-  addCampaignTreasury(gameState.playerParty, amount);
-  noteMinisterTaskOutcome(ministryId, true);
-
-  const catchRisk = Math.max(0.16, 0.38 - profile.competence * 0.12 - profile.resilience * 0.08);
-  if (Math.random() < catchRisk) {
-    const approvalHit = 5 + Math.round(Math.random() * 3);
-    govState.publicApproval = Math.max(5, (govState.publicApproval || 50) - approvalHit);
-    govState.partyApproval[gameState.playerParty] = Math.max(10, (govState.partyApproval?.[gameState.playerParty] || 55) - (approvalHit + 2));
-    nudgeLeaderApproval(gameState.playerParty, -4.5);
-    nudgeCredibility(gameState.playerParty, -0.16);
-    nudgeDiscipline(gameState.playerParty, -0.07);
-    nudgeCoalitionSignal(gameState.playerParty, -0.10);
-    rememberPoliticianEvent(minister, 'scandal', 'abuse of ministry funds for campaign purposes was exposed', minister.partyId);
-    createMajorScandal({
-      type: 'embezzlement',
-      title: 'Embezzlement Affair',
-      summary: `${minister.name} is accused of diverting ministry resources into the party campaign machine.`,
-      partyId: minister.partyId || gameState.playerParty,
-      accusedId: minister.id || null,
-      accusedName: minister.name,
-      accusedPartyId: minister.partyId || gameState.playerParty,
-      severity: 4,
-      source: 'embezzlement',
-    });
-    showNotification('⚠ EMBEZZLEMENT EXPOSED',
-      `${minister.name} was caught diverting ministry resources into the party war chest. €${amount}m reached the campaign, but this is now a full major scandal spanning the party, media, and courts.`, 'bad');
-  } else {
-    rememberPoliticianEvent(minister, 'fundraising', `quietly diverted €${amount}m into the party campaign machine`, minister.partyId);
-    showNotification('🕳️ FUNDS DIVERTED',
-      `${minister.name} quietly channels €${amount}m into the campaign treasury without immediate detection.`, 'neutral');
-  }
-
-  updateGovernanceNarrative();
-  updateGovHeader();
-  if (govState._activeGovPanel === 'partyaffairs') {
-    renderPartyAffairsPanel(document.getElementById('gov-main-panel'));
-  } else {
-    renderCabinetPanel(document.getElementById('gov-main-panel'));
-  }
+  showNotification('ACTION REMOVED', 'This action is no longer part of the game.', 'neutral');
 }
 
 // ===========================
@@ -19105,10 +18962,16 @@ function executeMinisterEmbezzlement(ministryId) {
 // ===========================
 
 const TAX_POLICIES = [
-  { id:'income',     label:'Income Tax Rate',        icon:'👤', baseRate:42,  min:30, max:55, step:2, unit:'%',
-    desc:'Top marginal income tax rate for individuals.',
-    econEffect:{ perPoint:{ gdpGrowth:-0.03, unemployment:+0.02, debtGdp:-0.25, inflation:-0.01 } },
+  { id:'income',     label:'Progressive Income Tax', icon:'👤', baseRate:45,  min:0, max:45, step:1, unit:'%',
+    desc:'German progressive income tax: 0% allowance, 14-24%, 24-42%, 42%, and 45% top marginal bracket.',
+    brackets:'2026 single thresholds: €0, €12,356, €18,103, €70,425, €287,052.',
+    econEffect:{ perPoint:{ gdpGrowth:-0.02, unemployment:+0.015, debtGdp:-0.18, inflation:-0.005 } },
     partyPref:{ Union:-1, SPD:1, Greens:1, FDP:-2, Linke:2, AfD:-1 } },
+  { id:'personal_allowance', label:'Personal Allowance', icon:'🧾', baseRate:12356, min:9000, max:18000, step:250, unit:'€',
+    desc:'Tax-free subsistence allowance tied to the current Bürgergeld settlement.',
+    dynamicBase:true, revenueFactor:-1,
+    econEffect:{ perPoint:{ gdpGrowth:+0.01, unemployment:-0.004, debtGdp:+0.08, inflation:+0.004 } },
+    partyPref:{ Union:-1, SPD:1, Greens:1, FDP:0, Linke:2, AfD:0 } },
   { id:'corporate',  label:'Corporate Tax Rate',     icon:'🏢', baseRate:30,  min:20, max:40, step:2, unit:'%',
     desc:'Effective corporate tax rate (Körperschaftsteuer + Gewerbesteuer).',
     econEffect:{ perPoint:{ gdpGrowth:-0.04, unemployment:+0.03, debtGdp:-0.30, investment:-0.02 } },
@@ -19121,6 +18984,18 @@ const TAX_POLICIES = [
     desc:'Tax on investment income and capital gains (Abgeltungsteuer).',
     econEffect:{ perPoint:{ investment:-0.03, debtGdp:-0.15, gdpGrowth:-0.02 } },
     partyPref:{ Union:-1, SPD:1, Greens:1, FDP:-2, Linke:2, AfD:0 } },
+  { id:'solidarity', label:'Solidarity Surcharge',   icon:'🤝', baseRate:5.5, min:0, max:5.5, step:0.5, unit:'%',
+    desc:'Solidaritätszuschlag as a surcharge on income tax; most lower and middle incomes remain exempt.',
+    econEffect:{ perPoint:{ gdpGrowth:-0.01, debtGdp:-0.08, investment:-0.005 } },
+    partyPref:{ Union:-1, SPD:1, Greens:1, FDP:-2, Linke:2, AfD:-2 } },
+  { id:'tobacco_alcohol', label:'Tobacco & Alcohol Taxes', icon:'🍺', baseRate:100, min:70, max:150, step:5, unit:'%',
+    desc:'Index for excise duties on tobacco, spirits, beer and related consumption taxes.',
+    econEffect:{ perPoint:{ inflation:+0.015, gdpGrowth:-0.004, debtGdp:-0.06 } },
+    partyPref:{ Union:0, SPD:1, Greens:1, FDP:-1, Linke:0, AfD:-1 } },
+  { id:'energy',     label:'Energy Taxes',           icon:'⚡', baseRate:100, min:50, max:160, step:5, unit:'%',
+    desc:'Index for electricity, fuel and heating-energy tax burden.',
+    econEffect:{ perPoint:{ inflation:+0.02, gdpGrowth:-0.01, debtGdp:-0.07, investment:+0.003 } },
+    partyPref:{ Union:-1, SPD:0, Greens:2, FDP:-1, Linke:-1, AfD:-2 } },
   { id:'carbon',     label:'Carbon Tax',             icon:'🏭', baseRate:45,  min:25, max:80, step:5, unit:'€/t',
     desc:'Price per tonne of CO₂ emissions.',
     econEffect:{ perPoint:{ inflation:+0.01, gdpGrowth:-0.005, investment:+0.005 } },
@@ -19151,18 +19026,54 @@ const TAX_POLICIES_1949 = [
 ];
 
 function initTaxPolicy() {
-  if (!govState.taxRates) {
-    govState.taxRates = {};
-    TAX_POLICIES.forEach(t => { govState.taxRates[t.id] = t.baseRate; });
-    govState.taxRatesApplied = { ...govState.taxRates };
-  }
+  if (!govState.taxRates) govState.taxRates = {};
+  TAX_POLICIES.forEach(t => {
+    if (!Number.isFinite(govState.taxRates[t.id])) govState.taxRates[t.id] = getTaxPolicyBaseRate(t);
+  });
+  if (!govState.taxRatesApplied) govState.taxRatesApplied = { ...govState.taxRates };
+  TAX_POLICIES.forEach(t => {
+    if (!Number.isFinite(govState.taxRatesApplied[t.id])) govState.taxRatesApplied[t.id] = govState.taxRates[t.id];
+  });
+}
+
+const BUERGERGELD_LAW_SETTINGS = {
+  lean: { label:'Lean Bürgergeld', monthly:500, allowance:11000 },
+  standard: { label:'Standard Bürgergeld', monthly:563, allowance:12356 },
+  enhanced: { label:'Enhanced Bürgergeld', monthly:650, allowance:14000 },
+  dignity: { label:'Dignity Guarantee', monthly:750, allowance:16000 },
+};
+
+function getCurrentBuergergeldSetting() {
+  ensureLegislativeState();
+  const key = govState.legislativeState?.buergergeld || 'standard';
+  return BUERGERGELD_LAW_SETTINGS[key] || BUERGERGELD_LAW_SETTINGS.standard;
+}
+
+function getTaxPolicyBaseRate(tp) {
+  if (tp?.id === 'personal_allowance') return getCurrentBuergergeldSetting().allowance;
+  return tp?.baseRate || 0;
+}
+
+function formatTaxPolicyValue(value, unit = '') {
+  const n = Number(value) || 0;
+  const shown = Math.abs(n) >= 1000
+    ? Math.round(n).toLocaleString('de-DE')
+    : (n % 1 !== 0 ? n.toFixed(1) : n);
+  return `${shown}${unit}`;
+}
+
+function getTaxPolicyRevenueImpact(tp) {
+  const baseRate = getTaxPolicyBaseRate(tp);
+  const delta = (govState.taxRates?.[tp.id] ?? baseRate) - baseRate;
+  return (delta / tp.step) * 2 * (tp.revenueFactor || 1);
 }
 
 function applyTaxEconomyEffects() {
   if (!govState.taxRates || !govState.taxRatesApplied || !govState.economy) return;
   const eco = govState.economy;
   TAX_POLICIES.forEach(tp => {
-    const delta = (govState.taxRates[tp.id] || tp.baseRate) - tp.baseRate;
+    const baseRate = getTaxPolicyBaseRate(tp);
+    const delta = (govState.taxRates[tp.id] ?? baseRate) - baseRate;
     const steps = delta / tp.step;
     const eff = tp.econEffect.perPoint;
     for (const key of Object.keys(eff)) {
@@ -19174,7 +19085,7 @@ function applyTaxEconomyEffects() {
 function getTaxPartyReaction(taxId, newRate) {
   const tp = TAX_POLICIES.find(t => t.id === taxId);
   if (!tp) return {};
-  const delta = newRate - tp.baseRate;
+  const delta = newRate - getTaxPolicyBaseRate(tp);
   const direction = delta > 0 ? 1 : delta < 0 ? -1 : 0;
   const reactions = {};
   govState.coalitionParties.forEach(pid => {
@@ -19602,7 +19513,8 @@ function renderOppositionPanel(main) {
   const playerParty = PARTY_DATA.find(p => p.id === govState.oppositionParty);
   const playerSeats = coalState.seats?.[govState.oppositionParty] || 0;
   const govSeats = govState.coalitionParties.reduce((s,id) => s+(coalState.seats?.[id]||0), 0);
-  const canCallNCM = (q - govState.lastConfidenceVote) >= 4 && govState.noConfidenceMotions < 2;
+  const lastConfidenceVote = getLastConfidenceVoteQuarter();
+  const canCallNCM = (q - lastConfidenceVote) >= 4 && govState.noConfidenceMotions < 2;
   const pendingCount = (govState._pendingEvents||[]).length;
 
   // Governing coalition mandate overview — show ALL parties (coalition + opposition player)
@@ -19658,7 +19570,7 @@ function renderOppositionPanel(main) {
     ? 'Force a confidence vote in the Bundestag. If the government loses (unlikely early on), Germany faces new elections \u2014 and your party leads the campaign. Used ' + govState.noConfidenceMotions + '/2 motions this term.'
     : govState.noConfidenceMotions >= 2
       ? 'You have used all 2 no-confidence motions allowed this term.'
-      : 'Next motion available in Q' + (((govState.lastConfidenceVote + 4) % 4) + 1) + '.';
+      : 'Next motion available in Q' + (((lastConfidenceVote + 4) % 4) + 1) + '.';
   const ncmDisabled = canCallNCM ? '' : 'disabled';
   const pendingBorderColor = govState.isOpposition ? 'var(--gold)' : 'var(--accent)';
   const pendingTextColor = govState.isOpposition ? 'var(--gold)' : 'var(--accent)';
@@ -21257,6 +21169,40 @@ function electBundestagOfficers() {
 
   govState._speakerCandidates = candidates;
   govState._presidentCandidates = presidentCandidates;
+  const leadPartyId = allParties[0] || null;
+  const playerLeadsCoalition = leadPartyId && gameState.playerParty === leadPartyId;
+  if (!playerLeadsCoalition && leadPartyId) {
+    const speakerPick = candidates.find(c => c.partyId === leadPartyId) || candidates[0] || null;
+    if (speakerPick) {
+      govState.bundestagSpeaker = {
+        name: speakerPick.name,
+        partyId: speakerPick.partyId,
+        portrait: speakerPick.portrait || '🧑‍⚖️',
+        traits: speakerPick.traits || [],
+      };
+    }
+    if (!govState.bundestagPresident) {
+      const presPool = getCeremonialEligiblePool(leadPartyId, [govState.bundestagSpeaker?.name].filter(Boolean));
+      const presidentPick = presPool.slice().sort((a, b) => (b.ambition || 0) - (a.ambition || 0))[0]
+        || presidentCandidates.find(c => c.partyId === leadPartyId)
+        || presidentCandidates.find(c => c.name !== govState.bundestagSpeaker?.name)
+        || null;
+      if (presidentPick) {
+        govState.bundestagPresident = {
+          name: presidentPick.name,
+          partyId: leadPartyId,
+          portrait: presidentPick.portrait || '🏛️',
+          traits: presidentPick.traits || [],
+        };
+        govState.bundestagPresidentTermStartQuarter = Number.isFinite(govState.globalQuarter)
+          ? govState.globalQuarter
+          : (Number.isFinite(govState.quarter) ? govState.quarter : 0);
+      }
+    }
+    govState._speakerElected = !!(govState.bundestagSpeaker && govState.bundestagPresident);
+    showGovPanel(getGovBlockingStep() === 'cabinet' ? 'cabinet' : 'bundestag3d');
+    return;
+  }
   govState._speakerElected = false;
 
   showGovPanel('speaker');
@@ -22937,10 +22883,6 @@ function renderCabinetDone(main) {
           ${(onCooldown || locked || quarterLocked) ? 'disabled' : ''}
           title="${locked ? 'Only '+(party?.name || 'this coalition partner')+' can direct this minister' : quarterLocked ? 'This minister has already used their one action this quarter.' : t.desc + econTitle}">${t.icon} ${t.label}${quarterLocked ? ' (USED)' : ''}${onCooldown ? ' ('+cdLeft+'Q)' : ''}${locked ? ' 🔒' : ''}</button>`;
       }).join('') : '';
-      const embezzleButton = isPlayerMinistry ? `<button class="gov-cabinet-action-btn gov-cabinet-action-btn--alert"
-        onclick="executeMinisterEmbezzlement('${min.id}')"
-        ${getMinisterQuarterAction(min.id) === govState.quarter ? 'disabled' : ''}
-        title="Skim ministry funds for party operations.">${getMinisterQuarterAction(min.id) === govState.quarter ? '🕳️ EMBEZZLE FUNDS (USED)' : '🕳️ EMBEZZLE FUNDS'}</button>` : '';
       const reshuffleButton = isPlayerMinistry ? `<button class="gov-cabinet-action-btn gov-cabinet-action-btn--muted"
         onclick="triggerCabinetReshuffle('${min.id}')"
         ${pressure >= 6 ? '' : 'disabled'}
@@ -22968,7 +22910,6 @@ function renderCabinetDone(main) {
           </div>` : ''}
           <div class="gov-cabinet-actions">
             ${taskButtons || `<button class="gov-cabinet-action-btn" disabled>${minister ? '· NO TASKS AVAILABLE YET' : '· PORTFOLIO NOT YET FILLED'}</button>`}
-            ${embezzleButton}
             ${reshuffleButton}
           </div>
         </article>`;
@@ -23010,7 +22951,6 @@ function renderCabinetDone(main) {
             }).join('')}
           </div>` : ''}
           ${chancellor?.partyId === gameState.playerParty ? `<div style="margin-top:6px;">
-            <button class="btn-secondary" onclick="executeMinisterEmbezzlement('chancellor')" ${getMinisterQuarterAction('chancellor') === govState.quarter ? 'disabled' : ''} style="font-size:9px;padding:5px 10px;border-color:var(--accent);color:${getMinisterQuarterAction('chancellor') === govState.quarter ? 'var(--muted)' : 'var(--accent)'};">🕳️ EMBEZZLE FUNDS${getMinisterQuarterAction('chancellor') === govState.quarter ? ' (USED)' : ''}</button>
           </div>` : ''}
         </div>
         <div style="text-align:right;flex-shrink:0;">
@@ -23067,9 +23007,7 @@ function startGovTerm() {
   if (!govState.budgetNegotiated) {
     showNotification('💶 BUDGET NEXT',
       'The cabinet is formed. Now negotiate the first federal budget before governing can begin.', 'neutral');
-    setTimeout(() => {
-      showBudgetNegotiation();
-    }, 800);
+    setGovCategory('bundestag', 'budget');
   } else {
     showGovPanel('approvals');
   }
@@ -23086,10 +23024,10 @@ function renderTaxPolicyPanel(main) {
 
   const taxRows = TAX_POLICIES.map(tp => {
     const currentRate = govState.taxRates[tp.id];
-    const baseRate = tp.baseRate;
+    const baseRate = getTaxPolicyBaseRate(tp);
     const delta = currentRate - baseRate;
     const deltaColor = delta > 0 ? 'var(--accent)' : delta < 0 ? '#3a9a3a' : 'var(--muted)';
-    const deltaLabel = delta > 0 ? '+' + delta + tp.unit : delta < 0 ? delta + tp.unit : 'No change';
+    const deltaLabel = delta > 0 ? '+' + formatTaxPolicyValue(delta, tp.unit) : delta < 0 ? '-' + formatTaxPolicyValue(Math.abs(delta), tp.unit) : 'No change';
 
     // Party reaction indicators
     const reactions = govState.coalitionParties.map(pid => {
@@ -23129,19 +23067,20 @@ function renderTaxPolicyPanel(main) {
           <span style="font-size:16px;">${tp.icon}</span>
           <span style="font-weight:600;font-size:13px;">${tp.label}</span>
           <span style="font-family:'Cormorant Garamond',serif;font-size:24px;color:${deltaColor};margin-left:auto;">
-            ${typeof currentRate === 'number' && currentRate % 1 !== 0 ? currentRate.toFixed(1) : currentRate}${tp.unit}
+            ${formatTaxPolicyValue(currentRate, tp.unit)}
           </span>
         </div>
         <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:8px;">${tp.desc}</div>
+        ${tp.brackets ? `<div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--gold);margin-bottom:8px;">${tp.brackets}</div>` : ''}
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-          <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);width:35px;">${tp.min}${tp.unit}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);width:48px;">${formatTaxPolicyValue(tp.min, tp.unit)}</span>
           <input type="range" min="${tp.min}" max="${tp.max}" step="${tp.step}" value="${currentRate}"
             oninput="updateTaxRate('${tp.id}', parseFloat(this.value))"
             style="flex:1;height:6px;accent-color:var(--gold);cursor:pointer;">
-          <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);width:35px;text-align:right;">${tp.max}${tp.unit}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);width:48px;text-align:right;">${formatTaxPolicyValue(tp.max, tp.unit)}</span>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <span style="font-family:'Space Mono',monospace;font-size:9px;color:${deltaColor};">Base: ${baseRate}${tp.unit} → ${deltaLabel}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:9px;color:${deltaColor};">Base: ${formatTaxPolicyValue(baseRate, tp.unit)} → ${deltaLabel}</span>
           <span style="margin-left:auto;">${reactions}</span>
         </div>
         ${effParts.length > 0 ? `<div style="margin-top:4px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);font-family:'Space Mono',monospace;font-size:8px;display:flex;gap:8px;flex-wrap:wrap;">
@@ -23153,9 +23092,7 @@ function renderTaxPolicyPanel(main) {
   // Calculate total revenue impact estimate
   let revenueImpact = 0;
   TAX_POLICIES.forEach(tp => {
-    const delta = (govState.taxRates[tp.id] || tp.baseRate) - tp.baseRate;
-    const steps = delta / tp.step;
-    revenueImpact += steps * 2; // rough €B per step
+    revenueImpact += getTaxPolicyRevenueImpact(tp); // rough €B per step
   });
   const revColor = revenueImpact > 0 ? '#3a9a3a' : revenueImpact < 0 ? 'var(--accent)' : 'var(--muted)';
 
@@ -23196,7 +23133,7 @@ function updateTaxRate(taxId, newValue) {
 }
 
 function resetTaxRates() {
-  TAX_POLICIES.forEach(t => { govState.taxRates[t.id] = t.baseRate; });
+  TAX_POLICIES.forEach(t => { govState.taxRates[t.id] = getTaxPolicyBaseRate(t); });
   renderTaxPolicyPanel(document.getElementById('gov-main-panel'));
 }
 
@@ -23207,7 +23144,8 @@ function applyTaxChanges() {
   govState.coalitionParties.forEach(pid => { totalApprovalDelta[pid] = 0; });
 
   TAX_POLICIES.forEach(tp => {
-    const delta = (govState.taxRates[tp.id] || tp.baseRate) - tp.baseRate;
+    const baseRate = getTaxPolicyBaseRate(tp);
+    const delta = (govState.taxRates[tp.id] ?? baseRate) - baseRate;
     if (delta === 0) return;
     const direction = delta > 0 ? 1 : -1;
     govState.coalitionParties.forEach(pid => {
@@ -24529,7 +24467,37 @@ function renderPartyAffairsPanel(main) {
 // CONFIDENCE VOTE
 // ===========================
 
+const CONFIDENCE_VOTE_COOLDOWN_QUARTERS = 4;
+
+function getLastConfidenceVoteQuarter() {
+  const last = Number(govState?.lastConfidenceVote);
+  if (Number.isFinite(last)) return last;
+  govState.lastConfidenceVote = -4;
+  return -4;
+}
+
+function getConfidenceVoteCooldownRemaining() {
+  return Math.max(0, getLastConfidenceVoteQuarter() + CONFIDENCE_VOTE_COOLDOWN_QUARTERS - Number(govState?.quarter || 0));
+}
+
+function canHoldConfidenceVoteThisQuarter() {
+  return getConfidenceVoteCooldownRemaining() <= 0;
+}
+
 function runConfidenceVote() {
+  if (!govState.coalitionParties?.includes(gameState.playerParty)) {
+    showNotification('CONFIDENCE UNAVAILABLE', 'Only a governing coalition party can call a confidence vote.', 'bad');
+    return;
+  }
+  const cooldownRemaining = getConfidenceVoteCooldownRemaining();
+  if (cooldownRemaining > 0) {
+    showNotification(
+      'CONFIDENCE COOLDOWN',
+      `A confidence vote can be held once every ${CONFIDENCE_VOTE_COOLDOWN_QUARTERS} quarters. Next available in ${cooldownRemaining} quarter${cooldownRemaining === 1 ? '' : 's'}.`,
+      'bad'
+    );
+    return;
+  }
   const seats = coalState.seats;
   ensurePartyFactions();
   const historical = isHistoricalGovernanceYear();
@@ -24835,7 +24803,9 @@ function renderConfidencePanel(main) {
   const year = (govState.baseYear || 2025) + Math.floor(q / 4);
   const historical = isHistoricalGovernanceYear(year);
   const qLabel = ['Q1','Q2','Q3','Q4'][q % 4];
-  const canCallVote = (q - govState.lastConfidenceVote) >= 3;
+  const lastConfidenceVote = getLastConfidenceVoteQuarter();
+  const confidenceCooldownRemaining = getConfidenceVoteCooldownRemaining();
+  const canCallVote = confidenceCooldownRemaining <= 0;
   const isCoalition = govState.coalitionParties && govState.coalitionParties.includes(gameState.playerParty);
   const isOpposition = syncPlayerGovernanceRole();
 
@@ -24865,22 +24835,24 @@ function renderConfidencePanel(main) {
       `).join('')}
     </div>`;
 
-  // Check if player party approval is ≤ 40% → offer withdrawal option
+  // Any player party inside the coalition may withdraw; low approval only changes the tone.
   const playerApproval = Math.round(govState.partyApproval[gameState.playerParty] || 50);
-  const canWithdraw = playerApproval <= 40 && !isOpposition;
+  const canWithdraw = isCoalition && !isOpposition;
+  const withdrawalTone = playerApproval <= 40 ? 'var(--accent)' : 'var(--gold)';
+  const withdrawalTitle = playerApproval <= 40 ? 'COALITION CRISIS — WITHDRAWAL OPTION' : 'COALITION EXIT OPTION';
   const withdrawalHtml = canWithdraw ? `
-    <div style="margin-top:16px;padding:16px 20px;background:var(--panel);border:1px solid var(--accent);border-left:4px solid var(--accent);">
-      <div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--accent);letter-spacing:0.04em;margin-bottom:6px;">
-        ⚠ COALITION CRISIS — WITHDRAWAL OPTION
+    <div style="margin-top:16px;padding:16px 20px;background:var(--panel);border:1px solid ${withdrawalTone};border-left:4px solid ${withdrawalTone};">
+      <div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:${withdrawalTone};letter-spacing:0.04em;margin-bottom:6px;">
+        🚪 ${withdrawalTitle}
       </div>
       <div style="font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);line-height:1.7;margin-bottom:14px;">
-        Your party's coalition approval has fallen to <strong style="color:var(--accent);">${playerApproval}%</strong> — the coalition is no longer politically sustainable.
-        You may withdraw from the coalition and collapse the government, triggering a confidence vote that the remaining partners cannot win alone.
+        Your party's coalition approval is <strong style="color:${withdrawalTone};">${playerApproval}%</strong>.
+        You may leave the coalition at any time. The remaining partners will try to assemble a replacement majority; if they fail, Germany heads to snap elections.
         <br><br>
-        <strong style="color:var(--text);">Consequence:</strong> Germany goes to snap elections. Your party will campaign in opposition.
+        <strong style="color:var(--text);">Consequence:</strong> Your party moves into opposition while the government crisis is resolved.
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn-primary" onclick="withdrawFromCoalition()" style="background:var(--accent);font-size:14px;padding:10px 22px;border-color:var(--accent);">
+        <button class="btn-primary" onclick="withdrawFromCoalition()" style="background:${withdrawalTone};font-size:14px;padding:10px 22px;border-color:${withdrawalTone};">
           🚪 WITHDRAW FROM COALITION
         </button>
         <button class="btn-secondary" onclick="showGovPanel('approvals')">← STAY FOR NOW</button>
@@ -24888,7 +24860,7 @@ function renderConfidencePanel(main) {
     </div>` : '';
 
   // Opposition: no-confidence motion option
-  const canCallNCM = isOpposition && (q - govState.lastConfidenceVote) >= 4 && govState.noConfidenceMotions < 2;
+  const canCallNCM = isOpposition && canCallVote && govState.noConfidenceMotions < 2;
   const ncmHtml = isOpposition ? `
     <div style="margin-top:16px;padding:16px 20px;background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--accent);">
       <div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--accent);letter-spacing:0.04em;margin-bottom:6px;">
@@ -24897,7 +24869,7 @@ function renderConfidencePanel(main) {
       <div style="font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);line-height:1.7;margin-bottom:12px;">
         As opposition, you may table ${historical ? 'a motion to replace the founding coalition' : 'a constructive no-confidence motion (Art. 67 GG)'} against the government. It succeeds only if more MPs vote for the motion than against it; abstentions do not count either way.<br>
         <strong style="color:var(--gold);">Motions remaining: ${2 - (govState.noConfidenceMotions||0)} of 2</strong>
-        ${!canCallNCM ? '<br><span style="color:var(--accent);">Cooldown active — next available in ' + (govState.lastConfidenceVote + 4 - q) + ' more quarter(s).</span>' : ''}
+        ${!canCallNCM ? '<br><span style="color:var(--accent);">Cooldown active — next available in ' + confidenceCooldownRemaining + ' more quarter(s).</span>' : ''}
       </div>
       <button class="btn-primary" onclick="runOppositionNCM()" ${canCallNCM?'':'disabled'} style="font-size:13px;padding:10px 22px;background:var(--accent);">
         TABLE NO-CONFIDENCE MOTION
@@ -24919,7 +24891,7 @@ function renderConfidencePanel(main) {
           }<br><br>
           ${!isOpposition ? (canCallVote
             ? '<span style="color:#3a9a3a;">&#10003; You may now call a confidence vote.</span>'
-            : '<span style="color:var(--gold);">&#9203; Next vote available in quarter ' + (govState.lastConfidenceVote + 3) + ' &mdash; coalition agreement limits frequency.</span>')
+            : '<span style="color:var(--gold);">&#9203; Next vote available in quarter ' + (lastConfidenceVote + CONFIDENCE_VOTE_COOLDOWN_QUARTERS) + ' &mdash; one confidence vote is allowed every ' + CONFIDENCE_VOTE_COOLDOWN_QUARTERS + ' quarters.</span>')
             : ''}
         </div>
         ${!isOpposition ? stanceHtml : ''}
@@ -25116,7 +25088,7 @@ function aiProposeBillsForMandates() {
 
   allMandateParties.forEach(partyId => {
     if (partyId === gameState.playerParty) return; // player handles their own bills
-    const mandate = govState.partyMandates[partyId];
+    const mandate = refreshImpossibleMandate(partyId, { isOpposition: !govState.coalitionParties.includes(partyId) });
     if (!mandate || mandate.satisfied) return;
 
     // Check if there's already an active bill satisfying this mandate
@@ -25136,7 +25108,7 @@ function aiProposeBillsForMandates() {
     const candidateBills = BILL_TEMPLATES
       .filter(t => mandate.satisfiedBy.includes(t.id))
       .filter(t => canProposeBill(t.id))
-      .filter(t => !govState.bills.some(b => b.templateId === t.id && b.status !== 'failed'));
+      .filter(t => !isBillActiveInPipeline(t.id));
 
     if (candidateBills.length === 0) return;
 
@@ -26828,6 +26800,26 @@ function renderInitialChancellorVote() {
     details.push({ partyId: p.id, name: p.name, color: p.color, seats: partySeats, yes, no, abs, coalition: isCoalition });
   });
 
+  if (attempt === 1 && yesVotes < needed && coalitionHasBundestagMajority(govState.coalitionParties || [])) {
+    let rescueNeeded = needed - yesVotes;
+    details.filter(d => d.coalition && rescueNeeded > 0).forEach(d => {
+      const movable = Math.min(rescueNeeded, d.abs + Math.max(0, d.no - 1));
+      const fromAbs = Math.min(movable, d.abs);
+      d.abs -= fromAbs;
+      d.yes += fromAbs;
+      rescueNeeded -= fromAbs;
+      if (rescueNeeded > 0) {
+        const fromNo = Math.min(rescueNeeded, Math.max(0, d.no - 1));
+        d.no -= fromNo;
+        d.yes += fromNo;
+        rescueNeeded -= fromNo;
+      }
+    });
+    yesVotes = details.reduce((sum, d) => sum + d.yes, 0);
+    noVotes = details.reduce((sum, d) => sum + d.no, 0);
+    abstain = details.reduce((sum, d) => sum + d.abs, 0);
+  }
+
   if (attempt >= 2 && yesVotes < needed) {
     let rescueNeeded = needed - yesVotes;
     details.filter(d => d.coalition && rescueNeeded > 0).forEach(d => {
@@ -27222,8 +27214,7 @@ function renderBudgetTaxPolicyPanel() {
   function calcTaxRevenue() {
     let rev = 0;
     TAX_POLICIES.forEach(tp => {
-      const delta = (govState.taxRates[tp.id] || tp.baseRate) - tp.baseRate;
-      rev += (delta / tp.step) * 2;
+      rev += getTaxPolicyRevenueImpact(tp);
     });
     return rev;
   }
@@ -27239,11 +27230,16 @@ function renderBudgetTaxPolicyPanel() {
 
   const taxRows = TAX_POLICIES.map(tp => {
     const currentRate = govState.taxRates[tp.id];
-    const baseRate = tp.baseRate;
+    const baseRate = getTaxPolicyBaseRate(tp);
     const delta = currentRate - baseRate;
     const deltaColor = delta > 0 ? '#3a9a3a' : delta < 0 ? 'var(--accent)' : 'var(--muted)';
-    const deltaLabel = delta > 0 ? `+${delta}${tp.unit} ↑ more revenue` : delta < 0 ? `${delta}${tp.unit} ↓ less revenue` : 'No change';
-    const revenueStep = (delta / tp.step) * 2;
+    const revenueStep = getTaxPolicyRevenueImpact(tp);
+    const revenueDirection = revenueStep > 0 ? '↑ more revenue' : revenueStep < 0 ? '↓ less revenue' : '';
+    const deltaLabel = delta > 0
+      ? `+${formatTaxPolicyValue(delta, tp.unit)} ${revenueDirection}`
+      : delta < 0
+        ? `-${formatTaxPolicyValue(Math.abs(delta), tp.unit)} ${revenueDirection}`
+        : 'No change';
     const revColor = revenueStep > 0 ? '#3a9a3a' : revenueStep < 0 ? 'var(--accent)' : 'var(--muted)';
 
     // Party reaction indicators
@@ -27277,16 +27273,17 @@ function renderBudgetTaxPolicyPanel() {
           <span style="font-size:15px;">${tp.icon}</span>
           <span style="font-weight:600;font-size:12px;">${tp.label}</span>
           <span style="font-family:'Cormorant Garamond',serif;font-size:22px;color:${deltaColor};margin-left:auto;">
-            ${typeof currentRate === 'number' && currentRate % 1 !== 0 ? currentRate.toFixed(1) : currentRate}${tp.unit}
+            ${formatTaxPolicyValue(currentRate, tp.unit)}
           </span>
         </div>
         <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:7px;">${tp.desc}</div>
+        ${tp.brackets ? `<div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--gold);margin-bottom:7px;">${tp.brackets}</div>` : ''}
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-          <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);width:35px;">${tp.min}${tp.unit}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);width:48px;">${formatTaxPolicyValue(tp.min, tp.unit)}</span>
           <input type="range" min="${tp.min}" max="${tp.max}" step="${tp.step}" value="${currentRate}"
             oninput="govState.taxRates['${tp.id}']=parseFloat(this.value);renderBudgetTaxPolicyPanel();"
             style="flex:1;height:6px;accent-color:var(--gold);cursor:pointer;">
-          <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);width:35px;text-align:right;">${tp.max}${tp.unit}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);width:48px;text-align:right;">${formatTaxPolicyValue(tp.max, tp.unit)}</span>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:${deltaColor};">${deltaLabel}</span>
@@ -27374,7 +27371,7 @@ function resetBudgetTaxRates() {
   if (govState._budgetTaxSnapshot) {
     govState.taxRates = { ...govState._budgetTaxSnapshot };
   } else {
-    TAX_POLICIES.forEach(t => { govState.taxRates[t.id] = t.baseRate; });
+    TAX_POLICIES.forEach(t => { govState.taxRates[t.id] = getTaxPolicyBaseRate(t); });
   }
   renderBudgetTaxPolicyPanel();
 }
@@ -27396,7 +27393,8 @@ function confirmBudgetTaxPolicy() {
   let totalApprovalDelta = {};
   govState.coalitionParties.forEach(pid => { totalApprovalDelta[pid] = 0; });
   TAX_POLICIES.forEach(tp => {
-    const delta = (govState.taxRates[tp.id] || tp.baseRate) - tp.baseRate;
+    const baseRate = getTaxPolicyBaseRate(tp);
+    const delta = (govState.taxRates[tp.id] ?? baseRate) - baseRate;
     if (delta === 0) return;
     const direction = delta > 0 ? 1 : -1;
     govState.coalitionParties.forEach(pid => {
@@ -30580,6 +30578,26 @@ const BILL_TEMPLATES = [
     partySupport:{ Union:2, SPD:-1, AfD:1, Greens:-1, Linke:-2, FDP:2 } },
   // Activation model: Union/FDP support; AfD: "stop freeloading"; SPD: uncomfortable; Linke: opposes cuts; Greens: sceptical
 
+  { id:'buergergeld_lean', cat:'social', icon:'📉', name:'Lean Bürgergeld & Activation Act',
+    desc:'Set the standard benefit at €500/month, tighten cooperation duties, expand job-centre placement targets, and anchor a €11,000 personal allowance.',
+    publicPop:-1, cost:-3, lawKey:'buergergeld', lawValue:'lean',
+    partySupport:{ Union:2, SPD:-1, AfD:2, Greens:-2, Linke:-2, FDP:2 } },
+
+  { id:'buergergeld_standard', cat:'social', icon:'💳', name:'Bürgergeld Stability Act',
+    desc:'Maintain the current €563/month standard benefit, protect housing support, fund caseworker capacity, and anchor the personal allowance near €12,356.',
+    publicPop:1, cost:1, lawKey:'buergergeld', lawValue:'standard',
+    partySupport:{ Union:0, SPD:2, AfD:-1, Greens:1, Linke:1, FDP:0 } },
+
+  { id:'buergergeld_enhanced', cat:'social', icon:'📈', name:'Bürgergeld Plus Act',
+    desc:'Raise the standard benefit to €650/month, soften sanctions, expand retraining grants, and lift the personal allowance to €14,000.',
+    publicPop:2, cost:5, lawKey:'buergergeld', lawValue:'enhanced',
+    partySupport:{ Union:-1, SPD:2, AfD:-1, Greens:2, Linke:2, FDP:-2 } },
+
+  { id:'buergergeld_dignity', cat:'social', icon:'🛡️', name:'Bürgergeld Dignity Guarantee',
+    desc:'Raise the standard benefit to €750/month, sharply limit sanctions, guarantee housing-cost coverage, and lift the personal allowance to €16,000.',
+    publicPop:1, cost:9, lawKey:'buergergeld', lawValue:'dignity',
+    partySupport:{ Union:-2, SPD:1, AfD:-2, Greens:2, Linke:2, FDP:-2 } },
+
   { id:'rentfreeze',    cat:'social',   icon:'🏘️', name:'National Rent Cap',
     desc:'Cap rent increases at CPI+1% in all urban areas with over 100,000 residents.',
     publicPop:2, cost:0,
@@ -31202,13 +31220,8 @@ function assignPartyMandate(partyId) {
   const available = profiles.filter(p => !recentlySatisfied.includes(p.cat));
   const viableAvailable = available.filter(profile => getMandateProfileViability(partyId, profile).viableNow);
   const viableProfiles = profiles.filter(profile => getMandateProfileViability(partyId, profile).viableNow);
-  const pool = viableAvailable.length > 0
-    ? viableAvailable
-    : viableProfiles.length > 0
-      ? viableProfiles
-      : available.length > 0
-        ? available
-        : profiles;
+  const pool = viableAvailable.length > 0 ? viableAvailable : viableProfiles;
+  if (pool.length === 0) return null;
 
   // Slight randomness so it's not always the first
   const chosen = pool[Math.floor(Math.random() * pool.length)];
@@ -31236,6 +31249,11 @@ function applyLegislativeStateChange(passedBill, template) {
   ensureLegislativeState();
   if (template.lawKey && template.lawValue !== undefined) {
     govState.legislativeState[template.lawKey] = template.lawValue;
+    if (template.lawKey === 'buergergeld') {
+      initTaxPolicy();
+      govState.taxRates.personal_allowance = getCurrentBuergergeldSetting().allowance;
+      govState.taxRatesApplied.personal_allowance = govState.taxRates.personal_allowance;
+    }
   }
   (template.repeals || []).forEach(targetId => {
     (govState.bills || []).forEach(existing => {
@@ -31294,7 +31312,10 @@ function refreshImpossibleMandate(partyId, options = {}) {
   if (pipeline.hasRemainingSatisfiers || pipeline.hasActivePath) return mandate;
 
   const replacement = assignPartyMandate(partyId);
-  if (!replacement) return mandate;
+  if (!replacement) {
+    delete govState.partyMandates[partyId];
+    return null;
+  }
   if (replacement.label === mandate.label && replacement.cat === mandate.cat) return mandate;
   if (!govState.partyMandates) govState.partyMandates = {};
   if (options.isOpposition) replacement.isOpposition = true;
@@ -31497,7 +31518,8 @@ function renderPartyMandatesHtml() {
   if (!govState.partyMandates || Object.keys(govState.partyMandates).length === 0) return '';
 
   function renderMandateCard(partyId, mandate, isOppositionCard) {
-    mandate = refreshImpossibleMandate(partyId, { isOpposition: !!isOppositionCard }) || mandate;
+    mandate = refreshImpossibleMandate(partyId, { isOpposition: !!isOppositionCard });
+    if (!mandate) return '';
     const pData = PARTY_DATA.find(p => p.id === partyId);
     const isPlayer = partyId === gameState.playerParty;
 
@@ -34893,7 +34915,7 @@ function ensureLoadedGovStateIntegrity() {
   }
 
   TAX_POLICIES.forEach(tp => {
-    if (!Number.isFinite(govState.taxRates[tp.id])) govState.taxRates[tp.id] = tp.baseRate;
+    if (!Number.isFinite(govState.taxRates[tp.id])) govState.taxRates[tp.id] = getTaxPolicyBaseRate(tp);
     if (!Number.isFinite(govState.taxRatesApplied[tp.id])) govState.taxRatesApplied[tp.id] = govState.taxRates[tp.id];
   });
 
