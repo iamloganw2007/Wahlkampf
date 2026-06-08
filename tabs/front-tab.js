@@ -14,6 +14,13 @@ window.WAHLKAMPF_TABS.front = String.raw`
                 <div class="news-brief-dek">Read pressure, momentum, and governability directly from the national terrain instead of chasing detached cards.</div>
               </section>
 
+              <div class="analysis-card" style="margin-top:16px;padding:0;">
+                <div class="ac-label">Polling Graph</div>
+                <div class="ac-hed" style="font-size:18px;">National polling trend</div>
+                <div class="ac-dek">Average of weekly polling data.</div>
+                <canvas id="game-poll-history-chart" height="220" style="width:100%;display:block;margin-top:8px;"></canvas>
+              </div>
+
             </aside>
 
             <div class="hero-story-map">
@@ -54,7 +61,7 @@ window.WAHLKAMPF_TABS.front = String.raw`
               <div class="hero-body">
                 <div class="hero-kicker">299 Wahlkreis · Live Feed</div>
                 <div class="hero-hed">Campaign terrain, turnout risk, and vote movement at a glance</div>
-                <div class="hero-dek">Use the electoral map as your front page. Read the headline, inspect the states, and shape the week’s national story through message discipline, policy emphasis, and coalition signaling.</div>
+                <div class="hero-dek">Use the electoral map as your front page. Read the headline, inspect the states, and shape the week's national story through message discipline, policy emphasis, and coalition signaling.</div>
                 <div class="hero-meta">
                   <span>Direct Mandate Projection</span>
                 </div>
@@ -66,7 +73,7 @@ window.WAHLKAMPF_TABS.front = String.raw`
         <div class="game-sidebar">
           <div class="sidebar-card">
             <div class="sc-tag crisis">Campaign Desk</div>
-            <div class="sc-hed">Choose this week’s front-page moves</div>
+            <div class="sc-hed">Choose this week's front-page moves</div>
             <div class="sc-meta">Operations, demographics, message, and late-cycle posture.</div>
           </div>
 
@@ -91,33 +98,6 @@ window.WAHLKAMPF_TABS.front = String.raw`
               <div class="action-cards" id="policy-cards"></div>
             </div>
 
-            <button class="campaign-advanced-toggle" id="campaign-advanced-toggle" onclick="toggleCampaignAdvancedControls()">
-                <div style="text-align:left;min-width:0;">
-                <div class="campaign-advanced-label">Advanced Campaign Controls</div>
-                <div class="campaign-advanced-summary" id="campaign-advanced-summary">Coalition posture, territorial focus, and late attacks.</div>
-              </div>
-              <div class="campaign-advanced-chevron" id="campaign-advanced-chevron">+</div>
-            </button>
-
-            <div class="campaign-advanced-panel" id="campaign-advanced-panel">
-              <div class="action-section">
-                <div class="action-section-title">Coalition Signal</div>
-                <div style="font-family:'Source Sans 3',sans-serif;font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.45;">German campaigns are also about governability. Decide whether to look open, careful, or confrontational this week.</div>
-                <div class="action-cards" id="coalition-cards"></div>
-              </div>
-
-              <div class="action-section">
-                <div class="action-section-title">Territorial Focus</div>
-                <div style="font-family:'Source Sans 3',sans-serif;font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.45;">Decide whether this week is about national message discipline, marginal constituencies, fortress seats, turnout, or survival politics near the threshold.</div>
-                <div class="action-cards" id="territory-cards"></div>
-              </div>
-
-              <div class="action-section" id="attack-section" style="display:none;">
-                <div class="action-section-title" style="color:var(--accent);">Hot Phase</div>
-                <div style="font-family:'Source Sans 3',sans-serif;font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.45;">Final stretch tactics have modest effect. Use them sparingly.</div>
-                <div class="action-cards" id="attack-cards"></div>
-              </div>
-            </div>
             <div class="turn-btn-row">
               <button class="turn-btn" id="turn-btn" onclick="executeTurn()">Advance Week</button>
               <button class="test-skip-btn" onclick="skipToElectionTest()">Skip To Election</button>
@@ -129,23 +109,23 @@ window.WAHLKAMPF_TABS.front = String.raw`
       <div class="bottom-grid">
         <div class="analysis-panel">
           <div class="analysis-card">
-            <div class="ac-label">Polling Desk</div>
-            <div class="ac-hed">Opinion polling</div>
-            <div class="ac-dek">Average of Weekly Polling.</div>
-            <div class="poll-board" style="padding:12px 0 0;border:none;background:transparent;box-shadow:none;">
-              <div id="poll-board"></div>
-            </div>
-          </div>
-
-          <div class="analysis-card">
             <div class="ac-label">Seat Projection</div>
             <div class="ac-hed">Seat Projection</div>
-            <div class="ac-dek">Based off latesting polling.</div>
+            <div class="ac-dek">Based off latest polling.</div>
             <div class="seat-bar-section" style="padding:12px 0 0;border:none;background:transparent;box-shadow:none;">
               <div class="parliament-svg-wrap">
                 <svg id="parliament-svg" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;"></svg>
               </div>
               <div class="majority-indicator" id="majority-indicator">Majority: 316 seats</div>
+            </div>
+          </div>
+
+          <div class="analysis-card">
+            <div class="ac-label">Polling Desk</div>
+            <div class="ac-hed">Opinion polling</div>
+            <div class="ac-dek">Average of Weekly Polling.</div>
+            <div class="poll-board" style="padding:12px 0 0;border:none;background:transparent;box-shadow:none;">
+              <div id="poll-board"></div>
             </div>
           </div>
         </div>
