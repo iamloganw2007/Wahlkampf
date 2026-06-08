@@ -8,7 +8,7 @@ window.WAHLKAMPF_TABS.polling = String.raw`
               <div class="ac-label">Polling Graph</div>
               <div class="ac-hed">National polling trend</div>
               <div class="ac-dek">Average of weekly polling data.</div>
-              <canvas id="game-poll-history-chart" height="320"></canvas>
+              <canvas id="game-poll-history-chart-polling-tab" height="320"></canvas>
             </div>
           </div>
 
