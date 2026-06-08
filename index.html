@@ -10594,7 +10594,7 @@ function parseGeoVoteOverrideTable(rawTable, partyOrder = GEO_2025_ERST_PARTY_OR
       partyOrder.forEach((partyId, idx) => {
         votes[partyId] = Number(parts[idx + 3]) || 0;
       });
-      // Merge CSU votes into Union (CDU/CSU are treated as one party)
+      // Merge CSU votes into Union (CDU/CSU treated as one party)
       if (votes['CSU']) {
         votes['Union'] = (votes['Union'] || 0) + votes['CSU'];
         delete votes['CSU'];
@@ -38815,6 +38815,558 @@ const _origRenderConfResult = renderConfidenceVoteResult;
       showGovPanel(govState._activeGovPanel || 'approvals');
     }
   };
+})();
+</script>
+
+<!-- ===== MUSIC PLAYER WIDGET ===== -->
+<style>
+#music-widget {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 9996;
+  font-family: 'Space Mono', monospace;
+  user-select: none;
+}
+#music-toggle-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--panel); border: 1px solid var(--border);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+  transition: transform 0.15s; color: var(--text);
+}
+#music-toggle-btn:hover { transform: scale(1.1); }
+#music-panel {
+  display: none; flex-direction: column; gap: 0;
+  background: var(--panel); border: 1px solid var(--border);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  width: 280px; margin-bottom: 6px;
+  overflow: hidden;
+}
+#music-panel.open { display: flex; }
+#music-header {
+  padding: 8px 12px 6px;
+  font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--muted); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+#music-now-playing {
+  padding: 10px 12px 6px;
+  min-height: 36px;
+}
+#music-track-title {
+  font-size: 10px; color: var(--text); font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 240px;
+}
+#music-track-sub {
+  font-size: 9px; color: var(--muted); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 240px;
+}
+#music-progress-wrap {
+  padding: 4px 12px 6px; display: flex; align-items: center; gap: 8px;
+}
+#music-time-cur, #music-time-dur {
+  font-size: 9px; color: var(--muted); min-width: 28px;
+}
+#music-time-dur { text-align: right; }
+#music-seek {
+  flex: 1; height: 3px; -webkit-appearance: none; appearance: none;
+  background: var(--border); border-radius: 2px; outline: none; cursor: pointer;
+}
+#music-seek::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--gold); cursor: pointer;
+}
+#music-controls {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 4px 12px 8px;
+}
+.music-ctrl-btn {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  width: 28px; height: 28px; border-radius: 4px; cursor: pointer;
+  font-size: 12px; display: flex; align-items: center; justify-content: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+.music-ctrl-btn:hover { color: var(--text); border-color: var(--text); }
+.music-ctrl-btn.active { color: var(--gold); border-color: var(--gold); }
+#music-play-btn {
+  width: 34px; height: 34px; font-size: 14px;
+  background: var(--gold); border-color: var(--gold); color: var(--bg);
+}
+#music-play-btn:hover { background: #e8b820; border-color: #e8b820; color: var(--bg); }
+#music-volume-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px 8px;
+}
+#music-vol-icon { font-size: 11px; color: var(--muted); cursor: pointer; min-width: 14px; }
+#music-volume {
+  flex: 1; height: 3px; -webkit-appearance: none; appearance: none;
+  background: var(--border); border-radius: 2px; outline: none; cursor: pointer;
+}
+#music-volume::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--text); cursor: pointer;
+}
+#music-queue-section {
+  border-top: 1px solid var(--border);
+  max-height: 160px; overflow-y: auto;
+}
+#music-queue-section::-webkit-scrollbar { width: 4px; }
+#music-queue-section::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.music-queue-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; cursor: pointer; transition: background 0.1s;
+  font-size: 9px; color: var(--muted); border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.music-queue-item:hover { background: var(--selection-soft); }
+.music-queue-item.active { color: var(--gold); }
+.music-queue-item-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.music-queue-remove {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font-size: 10px; padding: 0 2px; opacity: 0.5; transition: opacity 0.15s;
+}
+.music-queue-remove:hover { opacity: 1; color: var(--accent); }
+#music-add-section {
+  border-top: 1px solid var(--border); padding: 8px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+#music-url-row { display: flex; gap: 5px; }
+#music-url-input {
+  flex: 1; background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); font-family: 'Space Mono', monospace;
+  font-size: 9px; padding: 5px 8px; outline: none;
+  transition: border-color 0.15s;
+}
+#music-url-input:focus { border-color: var(--gold); }
+#music-url-input::placeholder { color: var(--muted); }
+#music-add-btn {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  font-family: 'Space Mono', monospace; font-size: 9px; padding: 5px 8px;
+  cursor: pointer; white-space: nowrap; transition: color 0.15s, border-color 0.15s;
+}
+#music-add-btn:hover { color: var(--gold); border-color: var(--gold); }
+#music-file-btn {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  font-family: 'Space Mono', monospace; font-size: 9px; padding: 5px 8px;
+  cursor: pointer; transition: color 0.15s, border-color 0.15s; text-align: center;
+}
+#music-file-btn:hover { color: var(--text); border-color: var(--text); }
+#music-file-input { display: none; }
+#music-yt-frame-wrap { display: none; width: 0; height: 0; overflow: hidden; position: absolute; }
+#music-status-bar {
+  font-size: 9px; color: var(--muted); padding: 0 12px 6px;
+  min-height: 14px; letter-spacing: 0.05em;
+}
+</style>
+
+<div id="music-widget">
+  <div id="music-panel">
+    <div id="music-header">
+      <span>🎵 Music Player</span>
+      <span id="music-source-badge" style="font-size:8px;padding:1px 5px;border:1px solid var(--border);color:var(--muted);">IDLE</span>
+    </div>
+    <div id="music-now-playing">
+      <div id="music-track-title" style="color:var(--muted);">No track loaded</div>
+      <div id="music-track-sub"></div>
+    </div>
+    <div id="music-progress-wrap">
+      <span id="music-time-cur">0:00</span>
+      <input type="range" id="music-seek" min="0" max="100" value="0" step="0.1">
+      <span id="music-time-dur">0:00</span>
+    </div>
+    <div id="music-controls">
+      <button class="music-ctrl-btn" id="music-prev-btn" title="Previous">⏮</button>
+      <button class="music-ctrl-btn" id="music-shuffle-btn" title="Shuffle">🔀</button>
+      <button class="music-ctrl-btn music-play-btn" id="music-play-btn" title="Play/Pause">▶</button>
+      <button class="music-ctrl-btn" id="music-repeat-btn" title="Repeat">🔁</button>
+      <button class="music-ctrl-btn" id="music-next-btn" title="Next">⏭</button>
+    </div>
+    <div id="music-volume-row">
+      <span id="music-vol-icon">🔊</span>
+      <input type="range" id="music-volume" min="0" max="100" value="70">
+    </div>
+    <div id="music-queue-section" id="music-queue-list"></div>
+    <div id="music-add-section">
+      <div id="music-url-row">
+        <input type="text" id="music-url-input" placeholder="YouTube / Spotify / SoundCloud URL…">
+        <button id="music-add-btn">+ ADD</button>
+      </div>
+      <button id="music-file-btn">📂 Add local audio file(s)</button>
+      <input type="file" id="music-file-input" accept="audio/*" multiple>
+    </div>
+    <div id="music-status-bar"></div>
+  </div>
+  <div id="music-yt-frame-wrap">
+    <div id="music-yt-container"></div>
+  </div>
+  <button id="music-toggle-btn" title="Music Player">🎵</button>
+</div>
+
+<script>
+(function() {
+  // ── State ──────────────────────────────────────────────────────────────────
+  const queue = [];       // { title, sub, type: 'local'|'youtube'|'stream', src, objectUrl? }
+  let currentIdx = -1;
+  let isPlaying = false;
+  let isShuffle = false;
+  let isRepeat = false;
+  let volume = 0.7;
+  let isMuted = false;
+  let seekDragging = false;
+
+  // ── Elements ───────────────────────────────────────────────────────────────
+  const panel        = document.getElementById('music-panel');
+  const toggleBtn    = document.getElementById('music-toggle-btn');
+  const playBtn      = document.getElementById('music-play-btn');
+  const prevBtn      = document.getElementById('music-prev-btn');
+  const nextBtn      = document.getElementById('music-next-btn');
+  const shuffleBtn   = document.getElementById('music-shuffle-btn');
+  const repeatBtn    = document.getElementById('music-repeat-btn');
+  const seekEl       = document.getElementById('music-seek');
+  const volEl        = document.getElementById('music-volume');
+  const volIcon      = document.getElementById('music-vol-icon');
+  const timeCur      = document.getElementById('music-time-cur');
+  const timeDur      = document.getElementById('music-time-dur');
+  const trackTitle   = document.getElementById('music-track-title');
+  const trackSub     = document.getElementById('music-track-sub');
+  const queueSection = document.getElementById('music-queue-section');
+  const urlInput     = document.getElementById('music-url-input');
+  const addBtn       = document.getElementById('music-add-btn');
+  const fileBtn      = document.getElementById('music-file-btn');
+  const fileInput    = document.getElementById('music-file-input');
+  const statusBar    = document.getElementById('music-status-bar');
+  const sourceBadge  = document.getElementById('music-source-badge');
+  const ytWrap       = document.getElementById('music-yt-frame-wrap');
+  const ytContainer  = document.getElementById('music-yt-container');
+
+  // ── HTML5 Audio (local / stream) ───────────────────────────────────────────
+  const audio = new Audio();
+  audio.volume = volume;
+  audio.addEventListener('timeupdate', onTimeUpdate);
+  audio.addEventListener('ended', onEnded);
+  audio.addEventListener('loadedmetadata', onMeta);
+  audio.addEventListener('error', () => setStatus('⚠ Could not load audio'));
+
+  // ── YouTube IFrame API ─────────────────────────────────────────────────────
+  let ytPlayer = null;
+  let ytReady = false;
+  let ytPendingVideoId = null;
+  let ytPolling = null;
+
+  function loadYTApi() {
+    if (window.YT || document.getElementById('yt-iframe-api-script')) return;
+    const s = document.createElement('script');
+    s.id = 'yt-iframe-api-script';
+    s.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(s);
+  }
+
+  window.onYouTubeIframeAPIReady = function() {
+    ytReady = true;
+    ytPlayer = new YT.Player('music-yt-container', {
+      height: '1', width: '1',
+      playerVars: { autoplay: 0, controls: 0 },
+      events: {
+        onReady: function() {
+          if (ytPendingVideoId) { playYT(ytPendingVideoId); ytPendingVideoId = null; }
+        },
+        onStateChange: function(e) {
+          if (e.data === YT.PlayerState.ENDED) onEnded();
+          if (e.data === YT.PlayerState.PLAYING) startYTPolling();
+          if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) stopYTPolling();
+        }
+      }
+    });
+  };
+
+  function playYT(videoId) {
+    if (!ytReady || !ytPlayer || typeof ytPlayer.loadVideoById !== 'function') {
+      ytPendingVideoId = videoId; return;
+    }
+    ytPlayer.loadVideoById(videoId);
+    ytPlayer.setVolume(Math.round(volume * 100));
+    ytPlayer.playVideo();
+    startYTPolling();
+  }
+
+  function startYTPolling() {
+    stopYTPolling();
+    ytPolling = setInterval(() => {
+      if (!ytPlayer || typeof ytPlayer.getCurrentTime !== 'function') return;
+      const cur = ytPlayer.getCurrentTime() || 0;
+      const dur = ytPlayer.getDuration() || 0;
+      if (!seekDragging && dur > 0) {
+        seekEl.value = (cur / dur) * 100;
+        timeCur.textContent = fmtTime(cur);
+        timeDur.textContent = fmtTime(dur);
+      }
+    }, 500);
+  }
+
+  function stopYTPolling() {
+    if (ytPolling) { clearInterval(ytPolling); ytPolling = null; }
+  }
+
+  // ── URL parsing ────────────────────────────────────────────────────────────
+  function parseUrl(raw) {
+    const url = raw.trim();
+    // YouTube
+    const ytMatch = url.match(/(?:youtube\.com\/watch\?.*v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+    if (ytMatch) return { type: 'youtube', videoId: ytMatch[1], title: 'YouTube Track', sub: ytMatch[1] };
+    // Spotify
+    if (url.includes('spotify.com')) return { type: 'stream', src: url, title: 'Spotify Track', sub: 'Opens in Spotify' };
+    // SoundCloud / direct audio
+    if (url.match(/\.(mp3|ogg|wav|flac|aac|m4a)(\?|$)/i))
+      return { type: 'local', src: url, title: url.split('/').pop().replace(/\?.*$/, ''), sub: 'Direct URL' };
+    // Assume stream/embed
+    return { type: 'stream', src: url, title: url.split('/').slice(-1)[0] || 'Stream', sub: new URL(url.startsWith('http') ? url : 'https://' + url).hostname };
+  }
+
+  // ── Queue management ───────────────────────────────────────────────────────
+  function addToQueue(track) {
+    queue.push(track);
+    renderQueue();
+    setStatus(`Added: ${track.title}`);
+    if (currentIdx === -1) loadTrack(queue.length - 1);
+  }
+
+  function removeFromQueue(idx) {
+    // Revoke object URL if local file
+    if (queue[idx].objectUrl) URL.revokeObjectURL(queue[idx].objectUrl);
+    if (idx === currentIdx) { stopCurrent(); currentIdx = -1; resetDisplay(); }
+    else if (idx < currentIdx) currentIdx--;
+    queue.splice(idx, 1);
+    renderQueue();
+  }
+
+  function renderQueue() {
+    queueSection.innerHTML = '';
+    if (!queue.length) {
+      queueSection.innerHTML = '<div style="padding:8px 12px;font-size:9px;color:var(--muted);">Queue empty — add tracks below</div>';
+      return;
+    }
+    queue.forEach((t, i) => {
+      const row = document.createElement('div');
+      row.className = 'music-queue-item' + (i === currentIdx ? ' active' : '');
+      row.innerHTML = `<span style="min-width:14px;font-size:9px;color:var(--muted)">${i === currentIdx ? '▶' : (i + 1)}</span>
+        <span class="music-queue-item-title">${esc(t.title)}</span>
+        <span style="font-size:8px;padding:1px 4px;border:1px solid var(--border);color:var(--muted);border-radius:2px;">${t.type === 'youtube' ? 'YT' : t.type === 'stream' ? '⬡' : '🎵'}</span>
+        <button class="music-queue-remove" title="Remove">✕</button>`;
+      row.querySelector('.music-queue-remove').onclick = (e) => { e.stopPropagation(); removeFromQueue(i); };
+      row.addEventListener('click', () => loadTrack(i, true));
+      queueSection.appendChild(row);
+    });
+  }
+
+  // ── Playback ───────────────────────────────────────────────────────────────
+  function stopCurrent() {
+    audio.pause(); audio.src = '';
+    if (ytPlayer && typeof ytPlayer.stopVideo === 'function') ytPlayer.stopVideo();
+    stopYTPolling();
+    isPlaying = false;
+  }
+
+  function loadTrack(idx, autoplay) {
+    stopCurrent();
+    currentIdx = idx;
+    const t = queue[idx];
+    if (!t) return;
+    trackTitle.style.color = 'var(--text)';
+    trackTitle.textContent = t.title;
+    trackSub.textContent = t.sub || '';
+    seekEl.value = 0; timeCur.textContent = '0:00'; timeDur.textContent = t.duration ? fmtTime(t.duration) : '–:––';
+    renderQueue();
+
+    if (t.type === 'youtube') {
+      sourceBadge.textContent = 'YOUTUBE';
+      loadYTApi();
+      playYT(t.videoId);
+      isPlaying = true;
+    } else if (t.type === 'stream') {
+      sourceBadge.textContent = 'STREAM';
+      // For Spotify/streaming services we can't embed directly; open in new tab
+      setStatus('⬡ Streaming URL — opening externally');
+      window.open(t.src, '_blank');
+      isPlaying = false;
+    } else {
+      sourceBadge.textContent = 'LOCAL';
+      audio.src = t.src;
+      audio.volume = isMuted ? 0 : volume;
+      if (autoplay !== false) { audio.play().catch(() => setStatus('⚠ Playback blocked — click play')); isPlaying = true; }
+    }
+    updatePlayBtn();
+  }
+
+  function togglePlay() {
+    if (!queue.length) { setStatus('Add a track first'); return; }
+    if (currentIdx === -1) { loadTrack(0, true); return; }
+    const t = queue[currentIdx];
+    if (t.type === 'youtube') {
+      if (!ytPlayer || typeof ytPlayer.getPlayerState !== 'function') return;
+      const state = ytPlayer.getPlayerState();
+      if (state === 1) { ytPlayer.pauseVideo(); isPlaying = false; }
+      else { ytPlayer.playVideo(); isPlaying = true; }
+    } else if (t.type !== 'stream') {
+      if (isPlaying) { audio.pause(); isPlaying = false; }
+      else { audio.play().catch(() => {}); isPlaying = true; }
+    }
+    updatePlayBtn();
+  }
+
+  function playNext() {
+    if (!queue.length) return;
+    let next;
+    if (isShuffle) {
+      next = Math.floor(Math.random() * queue.length);
+    } else {
+      next = currentIdx + 1;
+      if (next >= queue.length) next = isRepeat ? 0 : -1;
+    }
+    if (next === -1) { stopCurrent(); resetDisplay(); return; }
+    loadTrack(next, true);
+  }
+
+  function playPrev() {
+    if (!queue.length) return;
+    // If more than 3s in, restart; else go back
+    const pos = queue[currentIdx]?.type === 'youtube'
+      ? (ytPlayer?.getCurrentTime?.() || 0)
+      : audio.currentTime;
+    if (pos > 3) { seekTo(0); return; }
+    const prev = currentIdx > 0 ? currentIdx - 1 : queue.length - 1;
+    loadTrack(prev, true);
+  }
+
+  function seekTo(pct) {
+    const t = queue[currentIdx];
+    if (!t) return;
+    if (t.type === 'youtube' && ytPlayer && typeof ytPlayer.getDuration === 'function') {
+      ytPlayer.seekTo(ytPlayer.getDuration() * pct / 100, true);
+    } else if (t.type === 'local' && isFinite(audio.duration)) {
+      audio.currentTime = audio.duration * pct / 100;
+    }
+  }
+
+  function onEnded() {
+    isPlaying = false; updatePlayBtn();
+    if (isRepeat && currentIdx >= 0) { loadTrack(currentIdx, true); return; }
+    playNext();
+  }
+
+  function onTimeUpdate() {
+    if (seekDragging) return;
+    const dur = audio.duration, cur = audio.currentTime;
+    if (isFinite(dur) && dur > 0) {
+      seekEl.value = (cur / dur) * 100;
+      timeCur.textContent = fmtTime(cur);
+      timeDur.textContent = fmtTime(dur);
+    }
+  }
+
+  function onMeta() {
+    if (queue[currentIdx]) queue[currentIdx].duration = audio.duration;
+    timeDur.textContent = fmtTime(audio.duration);
+  }
+
+  function resetDisplay() {
+    trackTitle.textContent = 'No track loaded';
+    trackTitle.style.color = 'var(--muted)';
+    trackSub.textContent = '';
+    seekEl.value = 0; timeCur.textContent = '0:00'; timeDur.textContent = '0:00';
+    sourceBadge.textContent = 'IDLE';
+    updatePlayBtn();
+  }
+
+  function updatePlayBtn() {
+    playBtn.textContent = isPlaying ? '⏸' : '▶';
+  }
+
+  // ── UI events ──────────────────────────────────────────────────────────────
+  toggleBtn.onclick = () => panel.classList.toggle('open');
+  playBtn.onclick = togglePlay;
+  nextBtn.onclick = playNext;
+  prevBtn.onclick = playPrev;
+
+  shuffleBtn.onclick = () => {
+    isShuffle = !isShuffle;
+    shuffleBtn.classList.toggle('active', isShuffle);
+  };
+  repeatBtn.onclick = () => {
+    isRepeat = !isRepeat;
+    repeatBtn.classList.toggle('active', isRepeat);
+  };
+
+  seekEl.addEventListener('mousedown', () => { seekDragging = true; });
+  seekEl.addEventListener('input', () => {
+    const t = queue[currentIdx];
+    if (!t) return;
+    if (t.type === 'youtube') {
+      const dur = ytPlayer?.getDuration?.() || 0;
+      if (dur > 0) timeCur.textContent = fmtTime(dur * seekEl.value / 100);
+    } else if (isFinite(audio.duration)) {
+      timeCur.textContent = fmtTime(audio.duration * seekEl.value / 100);
+    }
+  });
+  seekEl.addEventListener('change', () => { seekDragging = false; seekTo(parseFloat(seekEl.value)); });
+
+  volEl.value = Math.round(volume * 100);
+  volEl.addEventListener('input', () => {
+    volume = volEl.value / 100;
+    isMuted = volume === 0;
+    audio.volume = volume;
+    if (ytPlayer && typeof ytPlayer.setVolume === 'function') ytPlayer.setVolume(Math.round(volume * 100));
+    volIcon.textContent = volume === 0 ? '🔇' : volume < 0.4 ? '🔉' : '🔊';
+  });
+  volIcon.onclick = () => {
+    isMuted = !isMuted;
+    audio.volume = isMuted ? 0 : volume;
+    if (ytPlayer && typeof ytPlayer.setVolume === 'function') ytPlayer.setVolume(isMuted ? 0 : Math.round(volume * 100));
+    volIcon.textContent = isMuted ? '🔇' : volume < 0.4 ? '🔉' : '🔊';
+  };
+
+  addBtn.onclick = () => {
+    const raw = urlInput.value.trim();
+    if (!raw) return;
+    try {
+      const parsed = parseUrl(raw);
+      addToQueue(parsed);
+      urlInput.value = '';
+    } catch (e) {
+      setStatus('⚠ Invalid URL');
+    }
+  };
+  urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
+
+  fileBtn.onclick = () => fileInput.click();
+  fileInput.addEventListener('change', () => {
+    Array.from(fileInput.files).forEach(file => {
+      const objectUrl = URL.createObjectURL(file);
+      addToQueue({ type: 'local', src: objectUrl, objectUrl, title: file.name.replace(/\.[^.]+$/, ''), sub: fmtBytes(file.size) });
+    });
+    fileInput.value = '';
+  });
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function fmtTime(s) {
+    if (!isFinite(s) || s < 0) return '–:––';
+    const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+    return `${m}:${String(sec).padStart(2, '0')}`;
+  }
+  function fmtBytes(b) {
+    return b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`;
+  }
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function setStatus(msg) {
+    statusBar.textContent = msg;
+    setTimeout(() => { if (statusBar.textContent === msg) statusBar.textContent = ''; }, 4000);
+  }
+
+  // Initial queue render
+  renderQueue();
 })();
 </script>
 
