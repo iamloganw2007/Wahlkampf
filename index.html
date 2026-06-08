@@ -27372,9 +27372,9 @@ function advanceQuarter() {
   const quartersInPower = (govState.quarter || 0) + 1;
   const firstTermHoneymoonActive = !isRepeatIncumbent && quartersInPower <= 4;
   const incumbencyPenaltyActive = isRepeatIncumbent;
-  const incumbencyMultiplier = 1 + repeatIncumbentTerms * 0.65 + (isRepeatIncumbent ? Math.max(0, quartersInPower - 2) * 0.08 : 0);
-  const repeatTermRewardScale = Math.max(0.22, 1 - repeatIncumbentTerms * 0.50);
-  const repeatTermPenaltyScale = 1 + repeatIncumbentTerms * 0.55;
+  const incumbencyMultiplier = 1 + repeatIncumbentTerms * 0.35 + (isRepeatIncumbent ? Math.max(0, quartersInPower - 3) * 0.05 : 0);
+  const repeatTermRewardScale = Math.max(0.45, 1 - repeatIncumbentTerms * 0.30);
+  const repeatTermPenaltyScale = 1 + repeatIncumbentTerms * 0.30;
   const incumbencyShield = coalitionPerformance.exceptional
     ? 1.15
     : coalitionPerformance.highPerforming
@@ -27387,7 +27387,7 @@ function advanceQuarter() {
           ? 0.55
         : 0;
   const effectiveIncumbencyShield = isRepeatIncumbent
-    ? incumbencyShield * Math.max(0.18, 1 - repeatIncumbentTerms * 0.42)
+    ? incumbencyShield * Math.max(0.40, 1 - repeatIncumbentTerms * 0.25)
     : incumbencyShield;
   const governanceReward = coalitionPerformance.exceptional
     ? 0.34
@@ -27483,10 +27483,10 @@ function advanceQuarter() {
     const timeForChangePressure = Math.max(
       0,
       Math.min(1.9,
-        0.18
+        0.06
         + Math.max(0, coalitionTotalPoll - 44) * 0.055
-        + Math.max(0, quartersInPower - 4) * 0.07
-        + repeatIncumbentTerms * 0.26
+        + Math.max(0, quartersInPower - 6) * 0.07
+        + repeatIncumbentTerms * 0.16
       )
     );
 
