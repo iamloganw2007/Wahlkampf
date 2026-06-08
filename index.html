@@ -7370,6 +7370,11 @@ const PARTY_POLICY_POOL_1949 = {
 
 function getCampaignContentYear() {
   if ((gameState && gameState.phase === 'campaign') || (gameState && gameState._isSnapElection)) {
+    // For snap elections after a governed term, use the pinned scenario content year
+    // (e.g. 2021) so that event/policy routing correctly identifies the 2021
+    // question-response card path. gameState.electionYear is the calendar snap year
+    // (e.g. 2025) and must NOT be used for content routing after a first-term snap.
+    if (gameState && gameState._scenarioContentYear) return gameState._scenarioContentYear;
     return (gameState && gameState.electionYear) || selectedCampaignYear;
   }
   return selectedCampaignYear;
@@ -11470,22 +11475,63 @@ function applyCampaignPollRealismByPhase(polls, floor = 0.5) {
   if (weight >= 0.999) return applyPollRealismMap(polls, floor, 'campaign');
   const activeParties = getActivePartyData();
   const adjusted = {};
-  activeParties.forEach(p => {
-    const raw = Math.max(floor, Number(polls?.[p.id]) || 0);
-    adjusted[p.id] = arePollCapsDisabled()
-      ? raw
-      : Math.max(floor, applyPartyPollingSoftCap(raw, p.id, 'campaign'));
-  });
+
+  if (arePollCapsDisabled()) {
+    activeParties.forEach(p => {
+      adjusted[p.id] = Math.max(floor, Number(polls?.[p.id]) || 0);
+    });
+  } else {
+    // Apply soft caps, but track how much each party was trimmed so we can
+    // redistribute those votes ideologically rather than evaporating them.
+    const raw = {};
+    const trimmed = {};
+    let totalTrimmed = 0;
+    activeParties.forEach(p => {
+      const r = Math.max(floor, Number(polls?.[p.id]) || 0);
+      raw[p.id] = r;
+      const capped = Math.max(floor, applyPartyPollingSoftCap(r, p.id, 'campaign'));
+      adjusted[p.id] = capped;
+      const trim = Math.max(0, r - capped);
+      trimmed[p.id] = trim;
+      totalTrimmed += trim;
+    });
+
+    // Redistribute trimmed votes to non-capped parties weighted by ideological
+    // proximity (via flow matrix) rather than blanket rescaling.
+    if (totalTrimmed > 0.005) {
+      activeParties.forEach(losingParty => {
+        const trim = trimmed[losingParty.id];
+        if (trim <= 0.001) return;
+        // Recipients: all active parties except the capped one, weighted by
+        // how naturally voters leave toward them (loss flow weights).
+        const lossWeights = getCampaignFlowWeightsForLoss(losingParty.id);
+        const recipients = activeParties.filter(p => p.id !== losingParty.id && !trimmed[p.id]);
+        if (!recipients.length) return;
+        const totalW = recipients.reduce((s, p) => s + Math.max(0.01, lossWeights[p.id] || 0.01), 0);
+        recipients.forEach(p => {
+          const share = trim * (Math.max(0.01, lossWeights[p.id] || 0.01) / totalW);
+          adjusted[p.id] = (adjusted[p.id] || 0) + share;
+        });
+      });
+    }
+  }
+
+  // Partial-weight pull toward 100: early campaign moves gently, late campaign firmly.
   const total = activeParties.reduce((sum, p) => sum + (adjusted[p.id] || 0), 0) || 1;
   const factor = 1 + ((100 / total) - 1) * weight;
   activeParties.forEach(p => {
     adjusted[p.id] = Math.max(floor, adjusted[p.id] * factor);
   });
-  // Re-normalize to guarantee sum = 100 (floor clamping can push total off)
+
+  // Final float-correction re-normalise: only correct genuine floating-point drift
+  // (< 0.5pp off). If the total is further off than that, something structural pushed
+  // it there and we should not forcibly rescale all parties to compensate.
   const adjustedTotal = activeParties.reduce((sum, p) => sum + adjusted[p.id], 0) || 1;
-  activeParties.forEach(p => {
-    adjusted[p.id] = Math.max(floor, adjusted[p.id] * 100 / adjustedTotal);
-  });
+  if (Math.abs(adjustedTotal - 100) < 0.5) {
+    activeParties.forEach(p => {
+      adjusted[p.id] = Math.max(floor, adjusted[p.id] * 100 / adjustedTotal);
+    });
+  }
   return adjusted;
 }
 
@@ -12072,12 +12118,39 @@ function applyPollRealismMap(polls, floor = 0.5, context = 'campaign') {
     return adjusted;
   }
   const adjusted = {};
+  const trimmed = {};
+  let totalTrimmed = 0;
   activeParties.forEach(p => {
     const raw = Math.max(floor, Number(polls?.[p.id]) || 0);
-    adjusted[p.id] = Math.max(floor, applyPartyPollingSoftCap(raw, p.id, context));
+    const capped = Math.max(floor, applyPartyPollingSoftCap(raw, p.id, context));
+    adjusted[p.id] = capped;
+    const trim = Math.max(0, raw - capped);
+    trimmed[p.id] = trim;
+    totalTrimmed += trim;
   });
+
+  // Redistribute cap-trimmed votes to non-capped parties via ideological flow weights.
+  if (totalTrimmed > 0.005) {
+    activeParties.forEach(losingParty => {
+      const trim = trimmed[losingParty.id];
+      if (trim <= 0.001) return;
+      const lossWeights = getCampaignFlowWeightsForLoss(losingParty.id);
+      const recipients = activeParties.filter(p => p.id !== losingParty.id && !trimmed[p.id]);
+      if (!recipients.length) return;
+      const totalW = recipients.reduce((s, p) => s + Math.max(0.01, lossWeights[p.id] || 0.01), 0);
+      recipients.forEach(p => {
+        const share = trim * (Math.max(0.01, lossWeights[p.id] || 0.01) / totalW);
+        adjusted[p.id] = (adjusted[p.id] || 0) + share;
+      });
+    });
+  }
+
+  // Float-correction only — don't structurally rescale if redistribution has
+  // already kept the total close to 100.
   const total = activeParties.reduce((sum, p) => sum + adjusted[p.id], 0) || 1;
-  activeParties.forEach(p => { adjusted[p.id] = Math.max(floor, adjusted[p.id] * 100 / total); });
+  if (Math.abs(total - 100) < 0.5) {
+    activeParties.forEach(p => { adjusted[p.id] = Math.max(floor, adjusted[p.id] * 100 / total); });
+  }
   return adjusted;
 }
 
@@ -12197,7 +12270,7 @@ const CAMPAIGN_VOTER_FLOW_2021 = {
 };
 
 function getCampaignFlowMatrix() {
-  const year = gameState?.electionYear || selectedCampaignYear || 2025;
+  const year = getCampaignContentYear();
   if (year === 2021) return CAMPAIGN_VOTER_FLOW_2021;
   return (year === 2025 || year === 2026) ? CAMPAIGN_VOTER_FLOW_2025 : null;
 }
@@ -13465,7 +13538,8 @@ function buildWeekUI() {
   const weekEvents = getWeeklyEvents(week);
   const weekPolicies = getWeeklyPolicies(week);
   const availableOperations = getActiveCampaignOperations(gameState.electionYear);
-  if (Number(gameState.electionYear) === 2021) {
+  const _contentYear2021 = Number(getCampaignContentYear()) === 2021;
+  if (_contentYear2021) {
     const eventTitle = document.querySelector('#event-cards')?.closest('.action-section')?.querySelector('.action-section-title');
     const demoTitle = document.querySelector('#demo-cards')?.closest('.action-section')?.querySelector('.action-section-title');
     const policyTitle = document.querySelector('#policy-cards')?.closest('.action-section')?.querySelector('.action-section-title');
@@ -13484,8 +13558,8 @@ function buildWeekUI() {
   if (document.getElementById('funding-cards')) buildActionCards('funding-cards', getAvailableCampaignFinanceOptions(gameState.playerParty), 'funding');
 
   // Party-specific signature events — inject into event-cards as premium options
-  const sigEvents = getPartySpecificEvents(gameState.playerParty, week, Number(gameState.electionYear) === 2021 ? 2 : 1);
-  (Number(gameState.electionYear) === 2021 ? [] : sigEvents).slice().reverse().forEach(sigEvent => {
+  const sigEvents = getPartySpecificEvents(gameState.playerParty, week, _contentYear2021 ? 2 : 1);
+  (_contentYear2021 ? [] : sigEvents).slice().reverse().forEach(sigEvent => {
     const eventContainer = document.getElementById('event-cards');
     const sigCard = document.createElement('div');
     sigCard.className = 'action-card';
@@ -14826,7 +14900,7 @@ function runAITurns(issue) {
     const archetype = AI_CAMPAIGN_ARCHETYPES[party.id] || AI_CAMPAIGN_ARCHETYPES.SPD;
     const dominantNarrative = getDominantCampaignNarrative(week);
 
-    const aiEventBasePool = Number(gameState.electionYear) === 2021
+    const aiEventBasePool = Number(getCampaignContentYear()) === 2021
       ? get2021QuestionResponseCards(week, party.id)
       : getYearEligibleEvents(ALL_CAMPAIGN_EVENTS);
     const aiEventPool = aiEventBasePool.filter(evt => {
@@ -14841,7 +14915,7 @@ function runAITurns(issue) {
     const aiOperation = pickPreferredAIOption(aiOperationPool, op => (op?.tags || []).some(tag => archetype.operationTags.includes(tag)));
     // AI picks a delivery channel — prefer channels whose reach overlaps with archetype's target demos
     const aiChannel = pickPreferredAIOption(DELIVERY_CHANNELS, ch => (ch.reaches || []).some(r => archetype.demos.includes(r))) || DELIVERY_CHANNELS[Math.floor(Math.random() * DELIVERY_CHANNELS.length)];
-    const aiDemoPool = Number(gameState.electionYear) === 2021 ? get2021QuestionDemoCards(week) : DEMOGRAPHICS;
+    const aiDemoPool = Number(getCampaignContentYear()) === 2021 ? get2021QuestionDemoCards(week) : DEMOGRAPHICS;
     const aiDemo = pickPreferredAIOption(aiDemoPool, demo => archetype.demos.includes(demo.id)) || aiDemoPool[0] || DEMOGRAPHICS[0];
     const aiCoalitionPosture = COALITION_POSTURES.find(posture => posture.id === 'conditional') || COALITION_POSTURES[1];
     const aiFundingPlan = null;
