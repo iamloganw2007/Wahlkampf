@@ -10809,6 +10809,7 @@ const LEGISLATIVE_STATE_DEFAULTS = {
   hard_drugs: 'criminalized',
   abortion: 'restricted',
   buergergeld: 'standard',
+  minwage: 'mw_12',
 };
 
 function ensureLegislativeState() {
@@ -10887,9 +10888,12 @@ function getAvailableMandateProfiles(partyId, yearOverride = null) {
   return profiles
     .map(profile => ({
       ...profile,
-      satisfiedBy: (profile.satisfiedBy || []).filter(templateId =>
-        canProposeBill(templateId) && getPartyBillScore(templateId, partyId) > 0
-      ),
+      satisfiedBy: (profile.satisfiedBy || []).filter(templateId => {
+        if (isBillPermanentlyLocked(templateId)) return false;
+        if (isBillLawStateUnavailable(templateId)) return false;
+        if (getPartyBillScore(templateId, partyId) <= 0) return false;
+        return true;
+      }),
     }))
     .filter(profile => (profile.satisfiedBy || []).length > 0);
 }
@@ -11759,8 +11763,8 @@ function constrainPollSwingToBaseline(polls, baselinePolls = {}, profile) {
 }
 
 const PARTY_REALISM_LIMITS = {
-  Union:  { softBonus: 18, ceiling: 45, firstPlaceFactor: 1.00, nearLeadFactor: 1.00 },
-  SPD:    { softBonus: 15, ceiling: 35, firstPlaceFactor: 1.00, nearLeadFactor: 1.00 },
+  Union:  { softBonus: 20, ceiling: 45, firstPlaceFactor: 1.00, nearLeadFactor: 1.00 },
+  SPD:    { softBonus: 17, ceiling: 38, firstPlaceFactor: 1.00, nearLeadFactor: 1.00 },
   AfD:    { softBonus: 13.0, ceiling: 30, firstPlaceFactor: 1.00, nearLeadFactor: 0.97 },
   Greens: { softBonus: 11.5, ceiling: 30, firstPlaceFactor: 1.0, nearLeadFactor: 1.00 },
   Linke:  { softBonus: 10.5, ceiling: 25, firstPlaceFactor: 0.62, nearLeadFactor: 0.78 },
@@ -12259,8 +12263,8 @@ function applyElectionNightRealism(finalPolls) {
 // Linke from Greens/SPD, and BSW is modelled explicitly with a tight
 // 70/30 donor split from Linke and AfD.
 const CAMPAIGN_VOTER_FLOW_2025 = {
-  Union:  { SPD: 0.29, FDP: 0.25, Greens: 0.12, AfD: 0.11, Linke: 0.03, nonvoters: 0.20 },
-  SPD:    { Greens: 0.25, Linke: 0.20, BSW: 0.08, Union: 0.14, FDP: 0.08, AfD: 0.05, nonvoters: 0.20 },
+  Union:  { SPD: 0.24, FDP: 0.20, Greens: 0.10, AfD: 0.10, Linke: 0.03, nonvoters: 0.33 },
+  SPD:    { Greens: 0.20, Linke: 0.16, BSW: 0.06, Union: 0.16, FDP: 0.07, AfD: 0.05, nonvoters: 0.30 },
   AfD:    { Union: 0.22, FDP: 0.19, SPD: 0.13, BSW: 0.09, Greens: 0.03, Linke: 0.01, nonvoters: 0.33 },
   Greens: { SPD: 0.31, Linke: 0.22, BSW: 0.05, Union: 0.08, FDP: 0.08, AfD: 0.02, nonvoters: 0.20 },
   Linke:  { Greens: 0.28, SPD: 0.24, BSW: 0.18, FDP: 0.06, Union: 0.03, AfD: 0.01, nonvoters: 0.20 },
@@ -15102,8 +15106,10 @@ function runAITurns(issue) {
     if      (deviation > 12) boost -= 0.35;
     else if (deviation > 8)  boost -= 0.22;
     else if (deviation > 5)  boost -= 0.12;
-    else if (deviation < -10) boost += 0.18;
-    else if (deviation < -6)  boost += 0.10;
+    else if (deviation < -14) boost += 0.42;
+    else if (deviation < -10) boost += 0.30;
+    else if (deviation < -6)  boost += 0.18;
+    else if (deviation < -3)  boost += 0.08;
 
     // ── SCRUTINY: Hot streaks attract visible media pressure instead of hidden random scandals ──
     if (!gameState._aiStreak) gameState._aiStreak = {};
@@ -19930,7 +19936,12 @@ let govState = {
 // gdpGrowth/gdpPerCapita/unemployment/inflation/debtGdp/investment
 const BILL_ECON_EFFECTS = {
   // ECONOMY bills
-  minwage:      { unemployment: +0.15, inflation: +0.10, gdpGrowth: +0.05, debtGdp: 0,    investment: 0,    gdpPerCapita: +0.10 },
+  // Minimum wage tiers — one-time transition effect on passing (ongoing handled by applyMinwageOngoingEffects)
+  minwage_13:   { unemployment: +0.04, inflation: +0.05, gdpGrowth: +0.04, debtGdp: 0,    investment: 0,    gdpPerCapita: +0.08 },
+  minwage_14:   { unemployment: +0.08, inflation: +0.08, gdpGrowth: +0.04, debtGdp: 0,    investment: -0.03, gdpPerCapita: +0.12 },
+  minwage_15:   { unemployment: +0.12, inflation: +0.10, gdpGrowth: +0.03, debtGdp: 0,    investment: -0.05, gdpPerCapita: +0.14 },
+  minwage_16:   { unemployment: +0.18, inflation: +0.14, gdpGrowth: +0.02, debtGdp: 0,    investment: -0.08, gdpPerCapita: +0.16 },
+  minwage_rollback: { unemployment: -0.06, inflation: -0.08, gdpGrowth: -0.02, debtGdp: 0, investment: +0.04, gdpPerCapita: -0.10 },
   taxcut:       { gdpGrowth: +0.20, unemployment: -0.08, debtGdp: -0.40,  inflation: +0.05, investment: 0,   gdpPerCapita: +0.18 },
   mittelstand:  { gdpGrowth: +0.12, unemployment: -0.06, debtGdp: +0.20,  inflation: 0,   investment: +0.05, gdpPerCapita: +0.14 },
   digitgov:     { gdpGrowth: +0.08, unemployment: -0.03, debtGdp: +0.30,  inflation: 0,   investment: +0.10, gdpPerCapita: +0.16 },
@@ -20879,6 +20890,58 @@ function getCurrentBuergergeldSetting() {
   return BUERGERGELD_LAW_SETTINGS[key] || BUERGERGELD_LAW_SETTINGS.standard;
 }
 
+// Minimum wage tier settings — hourly rate, label, and economic flavour
+const MINWAGE_LAW_SETTINGS = {
+  mw_12: { label: '€12/hr (status quo)', hourly: 12 },
+  mw_13: { label: '€13/hr', hourly: 13 },
+  mw_14: { label: '€14/hr', hourly: 14 },
+  mw_15: { label: '€15/hr', hourly: 15 },
+  mw_16: { label: '€16/hr', hourly: 16 },
+};
+
+function getCurrentMinwageSetting() {
+  ensureLegislativeState();
+  const key = govState.legislativeState?.minwage || 'mw_12';
+  return MINWAGE_LAW_SETTINGS[key] || MINWAGE_LAW_SETTINGS.mw_12;
+}
+
+// Per-quarter ongoing economic effect of the active minimum wage tier.
+// Applied each quarter in applyTaxEconomyEffects alongside tax policy effects.
+// Amounts are *relative to the mw_12 baseline* so the default tier has zero delta.
+const MINWAGE_QUARTERLY_EFFECTS = {
+  mw_12: { unemployment: 0,     inflation: 0,     gdpGrowth: 0,     gdpPerCapita: 0     },
+  mw_13: { unemployment: +0.04, inflation: +0.04, gdpGrowth: +0.02, gdpPerCapita: +0.06 },
+  mw_14: { unemployment: +0.07, inflation: +0.07, gdpGrowth: +0.03, gdpPerCapita: +0.10 },
+  mw_15: { unemployment: +0.11, inflation: +0.10, gdpGrowth: +0.03, gdpPerCapita: +0.13 },
+  mw_16: { unemployment: +0.15, inflation: +0.13, gdpGrowth: +0.02, gdpPerCapita: +0.15 },
+};
+
+function applyMinwageOngoingEffects() {
+  if (!govState.economy) return;
+  const key = govState.legislativeState?.minwage || 'mw_12';
+  const fx = MINWAGE_QUARTERLY_EFFECTS[key] || MINWAGE_QUARTERLY_EFFECTS.mw_12;
+  const eco = govState.economy;
+  Object.entries(fx).forEach(([k, v]) => {
+    if (Math.abs(v) > 0) eco[k] = (eco[k] || 0) + v * 0.25; // gradual, 25% per quarter
+  });
+  // Ongoing poll signal: a living-wage law keeps left parties' base happy and drags FDP slightly
+  if (govState.partyPolls && key !== 'mw_12') {
+    const tier = MINWAGE_LAW_SETTINGS[key] || {};
+    const hourly = tier.hourly || 12;
+    const raiseSteps = hourly - 12; // 1 to 4
+    const leftSignal  = raiseSteps * 0.015; // tiny but persistent
+    const rightSignal = raiseSteps * -0.008;
+    ['SPD','Greens','Linke','BSW'].forEach(id => {
+      if (govState.partyPolls[id] !== undefined)
+        govState.partyPolls[id] = Math.min(50, govState.partyPolls[id] + leftSignal);
+    });
+    ['FDP'].forEach(id => {
+      if (govState.partyPolls[id] !== undefined)
+        govState.partyPolls[id] = Math.max(1.5, govState.partyPolls[id] + rightSignal);
+    });
+  }
+}
+
 function getTaxPolicyBaseRate(tp) {
   if (tp?.id === 'personal_allowance') return getCurrentBuergergeldSetting().allowance;
   return tp?.baseRate || 0;
@@ -20910,6 +20973,7 @@ function applyTaxEconomyEffects() {
       eco[key] = (eco[key]||0) + eff[key] * steps * 0.25; // 25% effect per quarter (gradual)
     }
   });
+  applyMinwageOngoingEffects();
 }
 
 function getTaxPartyReaction(taxId, newRate) {
@@ -22169,7 +22233,7 @@ function enterGovernance(coalitionParties, coalitionPolicies, preagreedMinistryO
 }
 
 const COALITION_POLICY_BILL_LINKS = {
-  min_wage: ['minwage'],
+  min_wage: ['minwage_13', 'minwage_14', 'minwage_15', 'minwage_16'],
   climate: ['renewfast', 'buildclimate', 'co2tax'],
   tax_cuts: ['taxcut'],
   housing: ['housing', 'rentfreeze'],
@@ -22188,6 +22252,8 @@ const COALITION_POLICY_BILL_LINKS = {
 };
 
 const FLAGSHIP_IMPLEMENTATION_RULES = {
+  minwage_15: { ministryId: 'labour', label: '€15 Minimum Wage Rollout', quarters: 2, risk: 0.32, publicSuccess: 2, publicFail: -3 },
+  minwage_16: { ministryId: 'labour', label: '€16 Minimum Wage Rollout', quarters: 3, risk: 0.38, publicSuccess: 3, publicFail: -4 },
   bremseref: { ministryId: 'finance', label: 'Debt Brake Reform', quarters: 3, risk: 0.38, publicSuccess: 3, publicFail: -4 },
   wahlrecht: { ministryId: 'education', label: 'Education Compact Rollout', quarters: 3, risk: 0.34, publicSuccess: 2, publicFail: -3 },
   housing: { ministryId: 'health', label: 'Housing Programme Delivery', quarters: 3, risk: 0.42, publicSuccess: 3, publicFail: -4 },
@@ -26945,7 +27011,14 @@ function aiProposeBillsForMandates() {
       .filter(t => !isBillActiveInPipeline(t.id));
 
     if (candidateBills.length === 0) {
-      // No bills available for current mandate — force a refresh and retry once
+      // Distinguish: (a) all bills temporarily on cooldown — wait patiently,
+      // vs (b) all bills permanently blocked — then refresh the mandate.
+      const temporarilyBlocked = BILL_TEMPLATES
+        .filter(t => mandate.satisfiedBy.includes(t.id))
+        .filter(t => !isBillActiveInPipeline(t.id))
+        .some(t => isBillOnReintroCooldown(t.id) || isBillLockedThisTerm(t.id));
+      if (temporarilyBlocked) return; // Wait — a bill will become available next quarter
+      // No bills available and none are coming — force a refresh and retry once
       const refreshed = assignPartyMandate(partyId);
       if (!refreshed || refreshed.label === mandate.label) return;
       govState.partyMandates[partyId] = refreshed;
@@ -32415,12 +32488,39 @@ const BILL_CATEGORIES_1949 = [
 // partySupport: { Union, SPD, AfD, Greens, Linke, FDP }
 const BILL_TEMPLATES = [
   // ── ECONOMY ──────────────────────────────────────────────────────────────────────
-  { id:'minwage',       cat:'economy',  icon:'💰', name:'Minimum Wage Increase',
-    desc:'Raise the national minimum wage by €2/hr, boosting low-income workers.',
-    publicPop:1, cost:6,
-    partySupport:{ Union:-1, SPD:2, AfD:0, Greens:1, Linke:2, FDP:-2 } },
-  // Union: cost concerns; SPD: signature policy; AfD: mixed (populist appeal but pro-business);
-  // Greens: support; Linke: core demand; FDP: opposes strongly
+  // ── MINIMUM WAGE TIERS ───────────────────────────────────────────────────────
+  // Five tiers from €12 (status quo) to €16. Each tier is only available when
+  // the current law is at least one step below it, preventing downgrade or re-pass.
+  // requiresLawState: the tier that must be currently active (or any below it) — enforced
+  // by isBillLawStateUnavailable which blocks a bill if lawValue === current (already in force)
+  // and blocks if requiresLawState !== current.  We use lawKey:'minwage' throughout.
+  // The first tier (mw_12) is the default / status quo — it is the reset bill.
+
+  { id:'minwage_13', cat:'economy', icon:'💰', name:'Minimum Wage: €13/hr',
+    desc:'Set the statutory minimum wage to €13/hr. Boosts low-paid workers; modest cost to small businesses.',
+    publicPop:1, cost:3, lawKey:'minwage', lawValue:'mw_13', requiresLawState:'mw_12',
+    partySupport:{ Union:0, SPD:2, AfD:1, Greens:1, Linke:1, FDP:-1 } },
+
+  { id:'minwage_14', cat:'economy', icon:'💰', name:'Minimum Wage: €14/hr',
+    desc:'Set the statutory minimum wage to €14/hr. Significant pay floor increase for around 4 million workers.',
+    publicPop:2, cost:4, lawKey:'minwage', lawValue:'mw_14', requiresLawState:'mw_13',
+    partySupport:{ Union:-1, SPD:2, AfD:0, Greens:2, Linke:2, FDP:-1 } },
+
+  { id:'minwage_15', cat:'economy', icon:'💰', name:'Minimum Wage: €15/hr',
+    desc:'Set the statutory minimum wage to €15/hr. SPD and Greens flagship level; business groups warn of job losses.',
+    publicPop:2, cost:5, lawKey:'minwage', lawValue:'mw_15', requiresLawState:'mw_14',
+    partySupport:{ Union:-1, SPD:2, AfD:-1, Greens:2, Linke:2, FDP:-2 } },
+
+  { id:'minwage_16', cat:'economy', icon:'💰', name:'Minimum Wage: €16/hr',
+    desc:'Set the statutory minimum wage to €16/hr. Linke core demand; highest in EU per capita. Inflationary pressure expected.',
+    publicPop:1, cost:6, lawKey:'minwage', lawValue:'mw_16', requiresLawState:'mw_15',
+    partySupport:{ Union:-2, SPD:1, AfD:-1, Greens:1, Linke:2, FDP:-2 } },
+
+  // Rollback bill — requires an active raise to be in force
+  { id:'minwage_rollback', cat:'economy', icon:'📉', name:'Minimum Wage Rollback',
+    desc:'Reduce the minimum wage to the €12/hr baseline. FDP and Union demand; opposed by labour.',
+    publicPop:-2, cost:-2, lawKey:'minwage', lawValue:'mw_12',
+    partySupport:{ Union:2, SPD:-2, AfD:0, Greens:-2, Linke:-2, FDP:2 } },
 
   { id:'taxcut',        cat:'economy',  icon:'📉', name:'Corporate Tax Reduction',
     desc:'Cut corporate tax rate by 3 points to stimulate investment and jobs.',
@@ -33034,13 +33134,14 @@ const PARTY_BILL_SCORE_OVERRIDES = {
     bremseref: 1,
     lobbylaw: 1,
     wahlrecht: 1,
-    minwage: 1,
+    minwage_13: 2, minwage_14: 2, minwage_15: 1, minwage_16: 0, minwage_rollback: -2,
     welfarework: -1,
     cybersec: 0,
     policeref: 0,
     civildefence: -1,
   },
   SSW: {
+    minwage_13: 2, minwage_14: 2, minwage_15: 2, minwage_16: 1, minwage_rollback: -2,
     housing: 2,
     childcare: 2,
     careworkers: 1,
@@ -33054,6 +33155,7 @@ const PARTY_BILL_SCORE_OVERRIDES = {
     bremseref: 1,
   },
   FW: {
+    minwage_13: 0, minwage_14: -1, minwage_15: -1, minwage_16: -2, minwage_rollback: 1,
     mittelstand: 2,
     taxcut: 1,
     freelance_relief: 2,
@@ -33111,6 +33213,130 @@ if (!govState.activeBillId) govState.activeBillId = null;
 
 // Maps each party to their ideologically preferred bill categories + petitions
 // Each entry: { cat, label, icon, petition (short voter demand text), satisfiedBy (bill template ids) }
+// Seeded below so new bill types (e.g. minwage tiers) are always included.
+if (!window.PARTY_MANDATE_PROFILES || typeof window.PARTY_MANDATE_PROFILES !== 'object') {
+  window.PARTY_MANDATE_PROFILES = {};
+}
+(function seedMandateProfiles() {
+  const P = window.PARTY_MANDATE_PROFILES;
+  // Helper: merge new profiles without clobbering existing ones from external scripts
+  function addProfiles(partyId, profiles) {
+    if (!P[partyId]) P[partyId] = [];
+    profiles.forEach(profile => {
+      if (!P[partyId].some(e => e.cat === profile.cat && e.label === profile.label)) {
+        P[partyId].push(profile);
+      }
+    });
+  }
+  // ── SPD: minimum wage is a signature demand ───────────────────────────────
+  addProfiles('SPD', [
+    { cat:'economy', icon:'💶', label:'Raise the Minimum Wage',
+      petition:'Workers demand a higher minimum wage — table legislation now.',
+      satisfiedBy:['minwage_13','minwage_14','minwage_15','minwage_16'] },
+    { cat:'social', icon:'🏠', label:'Build Affordable Housing',
+      petition:'Voters demand action on rents — pass the housing programme.',
+      satisfiedBy:['housing','rentfreeze'] },
+    { cat:'social', icon:'👴', label:'Secure Pension Rights',
+      petition:'Pensioners want security — pass pension protection legislation.',
+      satisfiedBy:['pensionplus'] },
+    { cat:'social', icon:'🩺', label:'Healthcare for All',
+      petition:'Voters demand a fair health system — pass Bürgerversicherung.',
+      satisfiedBy:['healthref'] },
+    { cat:'economy', icon:'👶', label:'Expand Childcare',
+      petition:'Families demand childcare places — pass the expansion act.',
+      satisfiedBy:['childcare'] },
+  ]);
+  // ── Linke: minimum wage is a core demand alongside housing and social spending ──
+  addProfiles('Linke', [
+    { cat:'economy', icon:'💶', label:'€16 Minimum Wage Now',
+      petition:'Workers demand a living wage — pass the €16 minimum wage.',
+      satisfiedBy:['minwage_14','minwage_15','minwage_16'] },
+    { cat:'social', icon:'🏠', label:'Public Housing Programme',
+      petition:'Tenants demand rent control and social housing — act now.',
+      satisfiedBy:['housing','rentfreeze'] },
+    { cat:'social', icon:'🩺', label:'Nationalise Health Insurance',
+      petition:'Citizens demand a single-payer system — pass healthcare reform.',
+      satisfiedBy:['healthref'] },
+    { cat:'social', icon:'📈', label:'Strengthen Bürgergeld',
+      petition:'Recipients demand dignity — raise the benefit floor.',
+      satisfiedBy:['buergergeld_enhanced','buergergeld_dignity'] },
+    { cat:'climate', icon:'☀️', label:'Accelerate Renewable Energy',
+      petition:'Citizens demand a green transition — fast-track renewables.',
+      satisfiedBy:['renewfast','co2tax'] },
+  ]);
+  // ── Greens: minimum wage at €15 as fairness floor ─────────────────────────
+  addProfiles('Greens', [
+    { cat:'economy', icon:'💶', label:'Fair Wages Floor',
+      petition:'Workers demand fair pay — raise the minimum wage.',
+      satisfiedBy:['minwage_14','minwage_15'] },
+    { cat:'climate', icon:'☀️', label:'Renewables Acceleration',
+      petition:'Citizens demand faster climate action — pass the renewables act.',
+      satisfiedBy:['renewfast'] },
+    { cat:'social', icon:'🏠', label:'Solve the Housing Crisis',
+      petition:'Renters demand relief — pass housing and rent cap legislation.',
+      satisfiedBy:['housing','rentfreeze'] },
+    { cat:'climate', icon:'💨', label:'Carbon Pricing Reform',
+      petition:'Citizens demand a fair carbon price — pass the reform.',
+      satisfiedBy:['co2tax'] },
+    { cat:'social', icon:'👶', label:'Universal Childcare',
+      petition:'Families demand affordable childcare — pass the expansion act.',
+      satisfiedBy:['childcare'] },
+  ]);
+  // ── BSW: populist left-conservative — backs moderate wage rises ───────────
+  addProfiles('BSW', [
+    { cat:'economy', icon:'💶', label:'Higher Wages for Workers',
+      petition:'Workers demand a fair minimum wage — act now.',
+      satisfiedBy:['minwage_13','minwage_14'] },
+    { cat:'social', icon:'👴', label:'Protect Pension Rights',
+      petition:'Pensioners want security — pass pension legislation.',
+      satisfiedBy:['pensionplus'] },
+    { cat:'social', icon:'🏠', label:'Affordable Housing',
+      petition:'Tenants demand rent relief — pass housing legislation.',
+      satisfiedBy:['housing','rentfreeze'] },
+  ]);
+  // ── Union: backs moderate wage step only if economically justified ─────────
+  addProfiles('Union', [
+    { cat:'economy', icon:'🏭', label:'SME Support Package',
+      petition:'Businesses demand red tape relief — pass the SME package.',
+      satisfiedBy:['mittelstand'] },
+    { cat:'security', icon:'🪖', label:'Meet NATO Commitment',
+      petition:'Allies expect Germany to reach 2% — enshrine it in law.',
+      satisfiedBy:['nato2pct'] },
+    { cat:'security', icon:'🚷', label:'Reinforce Borders',
+      petition:'Voters demand migration control — pass border legislation.',
+      satisfiedBy:['borderctrl'] },
+    { cat:'economy', icon:'📉', label:'Cut Corporate Tax',
+      petition:'Businesses demand investment incentives — cut the corporate rate.',
+      satisfiedBy:['taxcut'] },
+  ]);
+  // ── FDP: opposes wage mandates; mandate is fiscal and market reform ────────
+  addProfiles('FDP', [
+    { cat:'economy', icon:'📉', label:'Corporate Tax Reduction',
+      petition:'Businesses demand investment incentives — pass the tax cut.',
+      satisfiedBy:['taxcut'] },
+    { cat:'reform', icon:'💳', label:'Bürgergeld Simplification',
+      petition:'Taxpayers demand a leaner welfare system — reform Bürgergeld.',
+      satisfiedBy:['buergergeld_lean','welfarework'] },
+    { cat:'economy', icon:'💻', label:'Digital Government',
+      petition:'Citizens demand modern public services — pass the Digital Act.',
+      satisfiedBy:['digitgov'] },
+    { cat:'reform', icon:'⚖️', label:'Court Modernisation',
+      petition:'Citizens demand faster justice — modernise the courts.',
+      satisfiedBy:['judiciarymod'] },
+  ]);
+  // ── AfD: wage populism vs business interests — net neutral, no mandate ─────
+  addProfiles('AfD', [
+    { cat:'security', icon:'🚷', label:'Permanent Border Controls',
+      petition:'Voters demand migration control — reinforce the borders now.',
+      satisfiedBy:['borderctrl'] },
+    { cat:'climate', icon:'⚛️', label:'Nuclear Extension Review',
+      petition:'Industry demands reliable baseload — review nuclear closure.',
+      satisfiedBy:['nuclearrv'] },
+    { cat:'economy', icon:'🔋', label:'Industrial Energy Subsidy',
+      petition:'Workers demand energy cost relief — subsidise industry.',
+      satisfiedBy:['energysubsidy'] },
+  ]);
+})();
 const PARTY_MANDATE_PROFILES = (typeof window.PARTY_MANDATE_PROFILES === 'object' && window.PARTY_MANDATE_PROFILES !== null)
   ? window.PARTY_MANDATE_PROFILES : {};
 
@@ -33160,6 +33386,32 @@ function applyLegislativeStateChange(passedBill, template) {
       initTaxPolicy();
       govState.taxRates.personal_allowance = getCurrentBuergergeldSetting().allowance;
       govState.taxRatesApplied.personal_allowance = govState.taxRates.personal_allowance;
+    }
+    if (template.lawKey === 'minwage') {
+      // Immediate party approval response to minimum wage tier change
+      const isRaise   = template.lawValue !== 'mw_12';
+      const isRollback = template.lawValue === 'mw_12';
+      const tier = MINWAGE_LAW_SETTINGS[template.lawValue] || {};
+      const hourly = tier.hourly || 12;
+      const raiseAmount = hourly - 12; // steps above baseline
+      // Left parties: pleased by raises, furious by rollback
+      const leftBoost   = isRaise ? Math.round(raiseAmount * 2.5) : -12;
+      // Right parties: modest concern over raises, pleased by rollback
+      const rightDrag   = isRaise ? -Math.round(raiseAmount * 1.5) : 8;
+      // Business-oriented: FDP strongly opposes high raises
+      const fdpDrag     = isRaise ? -Math.round(raiseAmount * 3) : 10;
+      if (govState.partyApproval) {
+        ['SPD','Greens','Linke','BSW'].forEach(id => {
+          govState.partyApproval[id] = Math.min(95, Math.max(10, (govState.partyApproval[id] || 55) + leftBoost));
+        });
+        ['Union','AfD'].forEach(id => {
+          govState.partyApproval[id] = Math.min(95, Math.max(10, (govState.partyApproval[id] || 55) + rightDrag));
+        });
+        govState.partyApproval['FDP'] = Math.min(95, Math.max(10, (govState.partyApproval['FDP'] || 55) + fdpDrag));
+      }
+      // Public approval: moderate raises popular, high raises neutral (inflation fears)
+      const publicDelta = isRollback ? -5 : raiseAmount <= 2 ? 3 : raiseAmount <= 3 ? 2 : 1;
+      govState.publicApproval = Math.min(65, Math.max(5, (govState.publicApproval || 45) + publicDelta));
     }
   }
   (template.repeals || []).forEach(targetId => {
@@ -33217,6 +33469,13 @@ function refreshImpossibleMandate(partyId, options = {}) {
   if (!mandate || mandate.satisfied) return mandate;
   const pipeline = getMandatePipelineState(mandate);
   if (pipeline.hasRemainingSatisfiers || pipeline.hasActivePath) return mandate;
+
+  // If bills are only temporarily on cooldown, preserve the mandate and wait.
+  const temporarilyBlocked = BILL_TEMPLATES
+    .filter(t => (mandate.satisfiedBy || []).includes(t.id))
+    .filter(t => !isBillActiveInPipeline(t.id))
+    .some(t => isBillOnReintroCooldown(t.id) || isBillLockedThisTerm(t.id));
+  if (temporarilyBlocked) return mandate;
 
   const replacement = assignPartyMandate(partyId);
   if (!replacement) {
@@ -33769,6 +34028,7 @@ function renderLegislationPanel(main) {
           <span style="font-family:'Space Mono',monospace;font-size:8px;letter-spacing:0.2em;color:var(--muted);text-transform:uppercase;white-space:nowrap;">ECONOMY</span>
           ${metrics}
           ${needLabel}
+          <span style="font-family:'Space Mono',monospace;font-size:9px;padding:2px 7px;border:1px solid var(--border);color:var(--muted);white-space:nowrap;">💰 MIN WAGE ${getCurrentMinwageSetting().hourly}€/hr</span>
         </div>`;
       })()}
 
