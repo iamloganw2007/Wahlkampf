@@ -8092,7 +8092,7 @@ function getRetrospectivePollEffect(partyId, week = gameState.currentWeek) {
   if (!memory || memory.kind !== 'governance_term') return 0;
   const effect = getRetrospectivePartyEffect(partyId);
   if (!effect) return 0;
-  const decay = week <= 0 ? 1 : week === 1 ? 0.7 : week === 2 ? 0.45 : week === 3 ? 0.25 : 0.12;
+  const decay = week <= 0 ? 1 : week === 1 ? 0.78 : week === 2 ? 0.58 : week === 3 ? 0.40 : week <= 6 ? 0.24 : 0.14;
   const repeatIncumbentTerms = Math.max(0, (gameState.coalitionTermsCompleted || 0) - 1);
   const isOutgoingIncumbent = (memory.coalitionParties || []).includes(partyId);
   const incumbencyMemoryScale = isOutgoingIncumbent
@@ -8109,11 +8109,15 @@ function getRetrospectiveIncumbencyProtection(partyId, week = gameState.currentW
   if (!effect || (effect.score || 0) <= 0.12) return 0;
   const anchor = getCampaignAnchorPolling(partyId);
   const pollNow = Number.isFinite(Number(currentPoll)) ? Number(currentPoll) : Number(gameState.polls?.[partyId] || 0);
-  if (pollNow < anchor - 2.5) return 0;
-  const weekFactor = week <= 1 ? 1 : week === 2 ? 0.82 : week <= 5 ? 0.62 : 0.45;
+  // Widen the cutoff: protection only shuts off if the party has fallen more than 5pp
+  // below its campaign-start anchor. The old 2.5pp cutoff meant protection disappeared
+  // as soon as a small slide began, accelerating the collapse.
+  if (pollNow < anchor - 5) return 0;
+  // Slower decay: protection persists meaningfully into mid-campaign, not just the first 2 weeks.
+  const weekFactor = week <= 1 ? 1 : week === 2 ? 0.88 : week <= 5 ? 0.72 : week <= 9 ? 0.55 : 0.38;
   const repeatIncumbentTerms = Math.max(0, (gameState.coalitionTermsCompleted || 0) - 1);
   const protectionScale = Math.max(0.22, 1 - repeatIncumbentTerms * 0.50);
-  return Math.max(0, Math.min(0.22, (effect.score * 0.16 + 0.03) * weekFactor * protectionScale));
+  return Math.max(0, Math.min(0.28, (effect.score * 0.18 + 0.04) * weekFactor * protectionScale));
 }
 
 function getRetrospectiveDisplaySnapshot(partyId) {
@@ -11760,9 +11764,9 @@ const PARTY_REALISM_LIMITS = {
   AfD:    { softBonus: 13.0, ceiling: 30, firstPlaceFactor: 1.00, nearLeadFactor: 0.97 },
   Greens: { softBonus: 11.5, ceiling: 30, firstPlaceFactor: 1.0, nearLeadFactor: 1.00 },
   Linke:  { softBonus: 10.5, ceiling: 25, firstPlaceFactor: 0.62, nearLeadFactor: 0.78 },
-  BSW:    { softBonus: 3.8, ceiling: 10, firstPlaceFactor: 0.36, nearLeadFactor: 0.52 },
+  BSW:    { softBonus: 1.8, ceiling: 6.5, firstPlaceFactor: 0.36, nearLeadFactor: 0.52 },
   SSW:    { softBonus: 0.6, ceiling: 1.3, firstPlaceFactor: 0.18, nearLeadFactor: 0.28 },
-  FW:     { softBonus: 2.4, ceiling: 5.2, firstPlaceFactor: 0.38, nearLeadFactor: 0.55 },
+  FW:     { softBonus: 1.6, ceiling: 4.0, firstPlaceFactor: 0.38, nearLeadFactor: 0.55 },
   FDP:    { softBonus:  9.5, ceiling: 30, firstPlaceFactor: 0.80, nearLeadFactor: 0.82 },
 };
 
@@ -11813,8 +11817,9 @@ function getPartyEffectiveCeiling(partyId, context = 'campaign') {
     const sortedCoalition = (govState.coalitionParties || []).slice().sort((a, b) => (seats[b] || 0) - (seats[a] || 0));
     const isJuniorPartner = sortedCoalition[0] !== partyId;
     if (isJuniorPartner) {
-      // Junior partners: ceiling = base + modest performance bonus, max +6pp above base
-      const juniorBase = getBasePolling(partyId);
+      // Junior partners: ceiling pegged to actual election result + modest bonus.
+      const electionResult = Number(gameState.finalResults?.[partyId]) || 0;
+      const juniorBase = electionResult > 0 ? electionResult : getBasePolling(partyId);
       const juniorBonus = coalitionPerformance.exceptional ? 5 : coalitionPerformance.highPerforming ? 4 : 3;
       const mandateJuniorBonus = mandateSatisfied ? 1 : 0;
       return Math.min(limits.ceiling, juniorBase + juniorBonus + mandateJuniorBonus);
@@ -12024,8 +12029,11 @@ function applyPartyPollingSoftCap(value, partyId, context = 'campaign') {
       const sortedCoalition = (govState.coalitionParties || []).slice().sort((a, b) => (seats[b] || 0) - (seats[a] || 0));
       const isJuniorPartner = sortedCoalition[0] !== partyId;
       if (isJuniorPartner) {
-        // Tight cap: base + small bonus, no large coalition-performance boost
-        const juniorBase = getBasePolling(partyId);
+        // Use the party's actual election result as the junior base rather than the historical
+        // scenario baseline. A party that won 13% at election and enters as junior partner
+        // should be pegged to that result, not an alternate-history baseline.
+        const electionResult = Number(gameState.finalResults?.[partyId]) || 0;
+        const juniorBase = electionResult > 0 ? electionResult : getBasePolling(partyId);
         const juniorSoftBonus = coalitionPerformance.exceptional ? 4 : coalitionPerformance.highPerforming ? 3 : 2;
         softCap = Math.min(effectiveCeiling, juniorBase + juniorSoftBonus + (mandateSatisfied ? 0.8 : 0.2));
         governanceSoftRetention = 0.45;
@@ -12145,10 +12153,10 @@ function applyPollRealismMap(polls, floor = 0.5, context = 'campaign') {
     });
   }
 
-  // Float-correction only — don't structurally rescale if redistribution has
-  // already kept the total close to 100.
+  // Normalize to 100. Governance drift is not zero-sum so the total can stray
+  // significantly; always rescale in that context rather than only near 100.
   const total = activeParties.reduce((sum, p) => sum + adjusted[p.id], 0) || 1;
-  if (Math.abs(total - 100) < 0.5) {
+  if (context === 'governance' || Math.abs(total - 100) > 0.05) {
     activeParties.forEach(p => { adjusted[p.id] = Math.max(floor, adjusted[p.id] * 100 / total); });
   }
   return adjusted;
@@ -12256,8 +12264,14 @@ const CAMPAIGN_VOTER_FLOW_2025 = {
   AfD:    { Union: 0.22, FDP: 0.19, SPD: 0.13, BSW: 0.09, Greens: 0.03, Linke: 0.01, nonvoters: 0.33 },
   Greens: { SPD: 0.31, Linke: 0.22, BSW: 0.05, Union: 0.08, FDP: 0.08, AfD: 0.02, nonvoters: 0.20 },
   Linke:  { Greens: 0.28, SPD: 0.24, BSW: 0.18, FDP: 0.06, Union: 0.03, AfD: 0.01, nonvoters: 0.20 },
-  BSW:    { Linke: 0.70, AfD: 0.30, nonvoters: 0.00 },
+  // BSW draws almost exclusively from Linke and AfD; SPD/Greens weights set to near-zero
+  // to prevent the ideological-distance fallback from incorrectly routing SPD voters to BSW.
+  // In the 2026 scenario Linke is in a successful coalition, so BSW's pool is largely AfD-adjacent.
+  BSW:    { Linke: 0.62, AfD: 0.32, SPD: 0.03, Greens: 0.02, nonvoters: 0.00 },
   FDP:    { Union: 0.31, AfD: 0.18, SPD: 0.12, Greens: 0.11, Linke: 0.03, nonvoters: 0.25 },
+  // FW is a regional anti-establishment party drawing from Union and nonvoters, not opposition parties.
+  // Explicit entry prevents the ideology-distance fallback from over-weighting Union losses to FW.
+  FW:     { Union: 0.28, SPD: 0.10, nonvoters: 0.30, FDP: 0.08 },
 };
 
 const CAMPAIGN_VOTER_FLOW_2021 = {
@@ -12267,6 +12281,11 @@ const CAMPAIGN_VOTER_FLOW_2021 = {
   Greens: { Union: 0.29, SPD: 0.26, Linke: 0.18, FDP: 0.10, AfD: 0.02, nonvoters: 0.15 },
   Linke:  { SPD: 0.34, Greens: 0.28, nonvoters: 0.18, AfD: 0.08, FDP: 0.07, Union: 0.05 },
   FDP:    { Union: 0.40, AfD: 0.13, SPD: 0.12, Linke: 0.06, Greens: 0.04, nonvoters: 0.25 },
+  // BSW didn't exist in 2021 — model it as drawing from disaffected Linke/SPD voters and non-voters
+  BSW:    { Linke: 0.55, SPD: 0.20, nonvoters: 0.25 },
+  // FW and SSW are small regional parties — draw from Union/SPD and non-voters
+  FW:     { Union: 0.50, SPD: 0.20, nonvoters: 0.30 },
+  SSW:    { SPD: 0.45, Greens: 0.30, nonvoters: 0.25 },
 };
 
 function getCampaignFlowMatrix() {
@@ -12325,11 +12344,16 @@ function getCampaignFlowContext() {
 }
 
 function getCampaignFlowMigrationFactor(losingPartyId, gainingPartyId) {
-  // Base factor from the voter flow matrix — always active so vote transfers
-  // happen between parties even without a prior governance term.
   const matrix = getCampaignFlowMatrix();
-  const baseFactor = matrix?.[gainingPartyId]?.[losingPartyId] || 0;
-  const baseActivation = Math.max(0.15, Math.min(1.0, baseFactor));
+  const gainingRow = matrix?.[gainingPartyId];
+  const entryExists = gainingRow && Object.prototype.hasOwnProperty.call(gainingRow, losingPartyId);
+  const baseFactor = entryExists ? (gainingRow[losingPartyId] || 0) : 0;
+  // Only apply the 0.15 floor when there is NO explicit matrix entry for this pair.
+  // If the entry exists but is deliberately small (e.g. BSW→SPD: 0.03), honour it
+  // literally — don't silently override suppressed flows back up to 15%.
+  const baseActivation = entryExists
+    ? Math.min(1.0, baseFactor)
+    : Math.max(0.15, Math.min(1.0, baseFactor));
 
   const context = getCampaignFlowContext();
   if (!context.hasContext) return baseActivation;
@@ -15053,6 +15077,22 @@ function runAITurns(issue) {
       boost += 0.05 + Math.max(0, (aiResourceSnapshot.messageClarity - 0.5) * 0.08);
     }
 
+    // Retrospective voting — AI coalition partners benefit/suffer from their governing record
+    // just as the player party does. Without this, a successful left coalition rewards only
+    // the player while coalition AI partners are drained by the player's siphon each turn.
+    const aiRetrospectiveBoost = getRetrospectivePollEffect(party.id, week);
+    if (aiRetrospectiveBoost !== 0) {
+      boost += aiRetrospectiveBoost;
+    }
+    // Incumbency protection for AI coalition partners (same as player path)
+    const aiContinuityProtection = getRetrospectiveIncumbencyProtection(party.id, week, currentPoll);
+    if (aiContinuityProtection > 0) {
+      const aiAnchor = getCampaignAnchorPolling(party.id);
+      boost += currentPoll >= aiAnchor - 1.5
+        ? aiContinuityProtection
+        : aiContinuityProtection * 0.55;
+    }
+
     // Cap single-week AI boost — tighter ceiling now that the pool is zero-sum:
     // a party can only rise at the expense of rivals, so big swings are meaningful.
     boost = Math.max(-1.00, Math.min(0.70, boost * tempoProfile.volatility));
@@ -16125,6 +16165,9 @@ function finishDebateRound() {
 }
 
 function resumeCampaign() {
+  // Reset phase to 'campaign' BEFORE buildWeekUI so getCampaignContentYear()
+  // returns the correct election year rather than falling back to selectedCampaignYear.
+  gameState.phase = 'campaign';
   showScreen('game');
   if (!gameState.leafletMap) { initMap(); } else { setTimeout(() => gameState.leafletMap.invalidateSize(), 50); }
   updateMapMarkers();
@@ -24964,13 +25007,25 @@ function applyTaxChanges() {
 }
 
 function renderGovernanceCurrentPollsHTML() {
+  const rawRows = getPollingDisplayRows(govState.partyPolls || {}, {
+    previousPolls: govState.prevPartyPolls || {},
+    year: gameState.electionYear,
+  }).filter(p => p.pct >= 2);
+
+  // Normalise displayed percentages so they sum to 100. govState.partyPolls accumulates
+  // drift each quarter and is not guaranteed to sum to 100 after redistribution.
+  const rawTotal = rawRows.reduce((sum, p) => sum + (p.pct || 0), 0) || 100;
+  const normFactor = 100 / rawTotal;
+  const rows = rawRows.map(p => ({ ...p, pct: p.pct * normFactor,
+    prevPct: p.prevPct !== undefined ? p.prevPct * normFactor : undefined }));
+
+  // Scale bars relative to the leading party (leader = 100% bar width).
+  const maxPct = rows.length > 0 ? rows[0].pct : 1;
+
   return `
     <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.05em;margin-bottom:10px;">CURRENT POLLS</div>
     <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:10px;">IF ELECTIONS WERE HELD TODAY</div>
-    ${getPollingDisplayRows(govState.partyPolls || {}, {
-      previousPolls: govState.prevPartyPolls || {},
-      year: gameState.electionYear,
-    }).filter(p => p.pct >= 2).map(p => {
+    ${rows.map(p => {
       const pct = p.pct || 0;
       const prev = p.prevPct;
       const isCoal = p.memberIds.some(id => govState.coalitionParties.includes(id));
@@ -24985,10 +25040,11 @@ function renderGovernanceCurrentPollsHTML() {
           deltaHtml = `<span style="font-size:9px;font-family:'Space Mono',monospace;color:var(--muted);min-width:34px;text-align:right;">—</span>`;
         }
       }
+      const barWidth = Math.min(100, (pct / maxPct) * 100);
       return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
         <span style="font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:${p.color};width:55px;flex-shrink:0;">${p.name}</span>
         <div style="flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden;">
-          <div style="height:100%;width:${Math.min(100, pct * 2.5)}%;background:${p.color};opacity:${isCoal ? '1' : '0.5'};border-radius:3px;"></div>
+          <div style="height:100%;width:${barWidth.toFixed(1)}%;background:${p.color};opacity:${isCoal ? '1' : '0.5'};border-radius:3px;"></div>
         </div>
         <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);width:38px;text-align:right;">${pct.toFixed(1)}%</span>
         ${deltaHtml}
