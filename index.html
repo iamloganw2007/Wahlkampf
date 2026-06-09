@@ -5812,7 +5812,7 @@ const PARTY_PROFILES_BY_YEAR = (typeof window.PARTY_PROFILES_BY_YEAR === 'object
 const PARTY_BASE_POLLING_BY_YEAR = {
   1949: { Union: 35.62, SPD: 28.92, AfD: 5.64, Greens: 11.84, Linke: 5.63, BSW: 0, SSW: 0, FW: 0, FDP: 12.35 },
   2026: { Union: 29.7, SPD: 5.5, AfD: 18.8, Greens: 30.2, Linke: 4.4, BSW: 1.4, SSW: 0, FW: 1.9, FDP: 4.4 },
-  2025: { Union: 29.37, SPD: 16.9, AfD: 21.42, Greens: 11.95, Linke: 9.03, BSW: 5.13, SSW: 0.16, FW: 1.6, FDP: 4.46 },
+  2025: { Union: 29.37, SPD: 16.9, AfD: 21.42, Greens: 11.95, Linke: 9.03, BSW: 4.4, SSW: 0.16, FW: 1.0, FDP: 4.46 },
   2021: { Union: 22.0, SPD: 22.0, AfD: 11.0, Greens: 20.0, Linke: 6.0, BSW: 0, SSW: 0.1, FW: 3.0, FDP: 10.0 },
 };
 
@@ -8712,6 +8712,15 @@ function applyWeeklyThresholdPressure() {
   const active = getActivePartyData(gameState.electionYear);
   active.forEach(party => { deltas[party.id] = 0; });
 
+  const week = gameState.currentWeek || 0;
+  const maxWeeks = gameState.maxWeeks || 16;
+  // Tactical voting crystallises late — apply meaningful pressure from ~week 11 onward.
+  // Early weeks: 25% strength (background noise only). Late campaign: ramps to full.
+  const lateStart = Math.round(maxWeeks * 0.68); // ~week 11 in a 16-week campaign
+  const phaseScale = week >= lateStart
+    ? Math.min(1.0, 0.5 + (week - lateStart) / Math.max(1, maxWeeks - lateStart) * 0.5)
+    : 0.25;
+
   active.forEach(party => {
     const current = Number(gameState.polls?.[party.id] || 0);
     if (current <= 0 || current >= 6.3) return;
@@ -8720,7 +8729,7 @@ function applyWeeklyThresholdPressure() {
     const coalition = Number(gameState.coalitionSignal?.[party.id] || 0);
     const rescue = Math.max(0, credibility * 0.03 + discipline * 0.02 + coalition * 0.015);
     const risk = current < 4.5 ? 0.10 : current < 5 ? 0.07 : 0.04;
-    const drag = Math.max(0.01, current * risk * 0.12 - rescue);
+    const drag = Math.max(0.01, current * risk * 0.12 - rescue) * phaseScale;
     deltas[party.id] -= drag;
     const targets = CAMPAIGN_STRATEGIC_TARGETS[party.id] || ['Union', 'SPD'];
     const perTarget = drag / Math.max(1, targets.length);
@@ -11768,9 +11777,9 @@ const PARTY_REALISM_LIMITS = {
   AfD:    { softBonus: 13.0, ceiling: 30, firstPlaceFactor: 1.00, nearLeadFactor: 0.97 },
   Greens: { softBonus: 11.5, ceiling: 30, firstPlaceFactor: 1.0, nearLeadFactor: 1.00 },
   Linke:  { softBonus: 10.5, ceiling: 25, firstPlaceFactor: 0.62, nearLeadFactor: 0.78 },
-  BSW:    { softBonus: 1.8, ceiling: 6.5, firstPlaceFactor: 0.36, nearLeadFactor: 0.52 },
+  BSW:    { softBonus: 1.2, ceiling: 5.8, firstPlaceFactor: 0.36, nearLeadFactor: 0.52 },
   SSW:    { softBonus: 0.6, ceiling: 1.3, firstPlaceFactor: 0.18, nearLeadFactor: 0.28 },
-  FW:     { softBonus: 1.6, ceiling: 4.0, firstPlaceFactor: 0.38, nearLeadFactor: 0.55 },
+  FW:     { softBonus: 1.0, ceiling: 3.5, firstPlaceFactor: 0.38, nearLeadFactor: 0.55 },
   FDP:    { softBonus:  9.5, ceiling: 30, firstPlaceFactor: 0.80, nearLeadFactor: 0.82 },
 };
 
@@ -11908,11 +11917,11 @@ function getCampaignPressureSnapshot(partyId, polls = gameState.polls) {
 
 function getCampaignTempoProfile(week = gameState.currentWeek || 0) {
   const maxWeeks = Number(gameState.maxWeeks) || 16;
-  if (week <= 1) return { volatility: 1.10, breakthroughChance: 0.15, breakthroughScale: 0.18, noiseScale: 1.05, momentumScale: 1.10 };
-  if (week <= 5) return { volatility: 1.22, breakthroughChance: 0.22, breakthroughScale: 0.22, noiseScale: 1.15, momentumScale: 1.20 };
-  if (week <= maxWeeks - 6) return { volatility: 1.34, breakthroughChance: 0.27, breakthroughScale: 0.28, noiseScale: 1.25, momentumScale: 1.30 };
-  if (week <= maxWeeks - 3) return { volatility: 1.46, breakthroughChance: 0.32, breakthroughScale: 0.34, noiseScale: 1.35, momentumScale: 1.40 };
-  return { volatility: 1.58, breakthroughChance: 0.40, breakthroughScale: 0.42, noiseScale: 1.45, momentumScale: 1.50 };
+  if (week <= 1) return { volatility: 0.90, breakthroughChance: 0.12, breakthroughScale: 0.15, noiseScale: 0.90, momentumScale: 0.95 };
+  if (week <= 5) return { volatility: 0.98, breakthroughChance: 0.18, breakthroughScale: 0.18, noiseScale: 0.95, momentumScale: 1.00 };
+  if (week <= maxWeeks - 6) return { volatility: 1.06, breakthroughChance: 0.22, breakthroughScale: 0.22, noiseScale: 1.00, momentumScale: 1.05 };
+  if (week <= maxWeeks - 3) return { volatility: 1.14, breakthroughChance: 0.27, breakthroughScale: 0.27, noiseScale: 1.08, momentumScale: 1.12 };
+  return { volatility: 1.22, breakthroughChance: 0.34, breakthroughScale: 0.32, noiseScale: 1.15, momentumScale: 1.18 };
 }
 
 function getGovernancePressureSnapshot(partyId, polls = govState?.partyPolls) {
@@ -12112,7 +12121,11 @@ function applyPartyPollingSoftCap(value, partyId, context = 'campaign') {
   }
 
   if (partyId === 'BSW') {
-    adjusted = Math.min(10.0, adjusted);
+    adjusted = Math.min(6.5, adjusted);
+  }
+
+  if (partyId === 'FW') {
+    adjusted = Math.min(3.5, adjusted);
   }
 
   return adjusted;
@@ -12263,33 +12276,35 @@ function applyElectionNightRealism(finalPolls) {
 // Linke from Greens/SPD, and BSW is modelled explicitly with a tight
 // 70/30 donor split from Linke and AfD.
 const CAMPAIGN_VOTER_FLOW_2025 = {
-  Union:  { SPD: 0.24, FDP: 0.20, Greens: 0.10, AfD: 0.10, Linke: 0.03, nonvoters: 0.33 },
-  SPD:    { Greens: 0.20, Linke: 0.16, BSW: 0.06, Union: 0.16, FDP: 0.07, AfD: 0.05, nonvoters: 0.30 },
-  AfD:    { Union: 0.22, FDP: 0.19, SPD: 0.13, BSW: 0.09, Greens: 0.03, Linke: 0.01, nonvoters: 0.33 },
-  Greens: { SPD: 0.31, Linke: 0.22, BSW: 0.05, Union: 0.08, FDP: 0.08, AfD: 0.02, nonvoters: 0.20 },
-  Linke:  { Greens: 0.28, SPD: 0.24, BSW: 0.18, FDP: 0.06, Union: 0.03, AfD: 0.01, nonvoters: 0.20 },
-  // BSW draws almost exclusively from Linke and AfD; SPD/Greens weights set to near-zero
-  // to prevent the ideological-distance fallback from incorrectly routing SPD voters to BSW.
-  // In the 2026 scenario Linke is in a successful coalition, so BSW's pool is largely AfD-adjacent.
-  BSW:    { Linke: 0.62, AfD: 0.32, SPD: 0.03, Greens: 0.02, nonvoters: 0.00 },
-  FDP:    { Union: 0.31, AfD: 0.18, SPD: 0.12, Greens: 0.11, Linke: 0.03, nonvoters: 0.25 },
-  // FW is a regional anti-establishment party drawing from Union and nonvoters, not opposition parties.
-  // Explicit entry prevents the ideology-distance fallback from over-weighting Union losses to FW.
-  FW:     { Union: 0.28, SPD: 0.10, nonvoters: 0.30, FDP: 0.08 },
+  Union:  { SPD: 0.20, FDP: 0.16, Greens: 0.08, AfD: 0.08, Linke: 0.02, nonvoters: 0.46 },
+  SPD:    { Greens: 0.16, Linke: 0.12, BSW: 0.04, Union: 0.12, FDP: 0.05, AfD: 0.04, nonvoters: 0.47 },
+  AfD:    { Union: 0.17, FDP: 0.14, SPD: 0.09, BSW: 0.06, Greens: 0.02, Linke: 0.01, nonvoters: 0.51 },
+  Greens: { SPD: 0.24, Linke: 0.17, BSW: 0.04, Union: 0.06, FDP: 0.06, AfD: 0.01, nonvoters: 0.42 },
+  Linke:  { Greens: 0.22, SPD: 0.18, BSW: 0.13, FDP: 0.04, Union: 0.02, AfD: 0.01, nonvoters: 0.40 },
+  // BSW draws almost exclusively from Linke and AfD; small nonvoter share added
+  // to prevent 100% of gains siphoning from active parties.
+  BSW:    { Linke: 0.46, AfD: 0.24, SPD: 0.02, Greens: 0.01, nonvoters: 0.27 },
+  FDP:    { Union: 0.24, AfD: 0.14, SPD: 0.09, Greens: 0.08, Linke: 0.02, nonvoters: 0.43 },
+  // FW is a regional anti-establishment party — high nonvoter share reflects
+  // that most FW growth comes from mobilising local non-voters, not stealing from major parties.
+  FW:     { Union: 0.18, SPD: 0.06, nonvoters: 0.68, FDP: 0.05 },
 };
 
 const CAMPAIGN_VOTER_FLOW_2021 = {
-  Union:  { SPD: 0.35, Greens: 0.23, FDP: 0.25, AfD: 0.03, Linke: 0.02, nonvoters: 0.12 },
-  SPD:    { Union: 0.33, nonvoters: 0.24, Linke: 0.18, AfD: 0.11, FDP: 0.09, Greens: 0.05 },
-  AfD:    { SPD: 0.20, FDP: 0.16, Union: 0.15, Greens: 0.04, Linke: 0.05, nonvoters: 0.40 },
-  Greens: { Union: 0.29, SPD: 0.26, Linke: 0.18, FDP: 0.10, AfD: 0.02, nonvoters: 0.15 },
-  Linke:  { SPD: 0.34, Greens: 0.28, nonvoters: 0.18, AfD: 0.08, FDP: 0.07, Union: 0.05 },
-  FDP:    { Union: 0.40, AfD: 0.13, SPD: 0.12, Linke: 0.06, Greens: 0.04, nonvoters: 0.25 },
+  // nonvoter weights raised for large parties — in 2021 much of the campaign
+  // growth for all parties came from mobilising previous non-voters, not stealing
+  // directly from rivals. Low nonvoter weights caused Union/SPD to be over-siphoned.
+  Union:  { SPD: 0.26, Greens: 0.17, FDP: 0.18, AfD: 0.02, Linke: 0.02, nonvoters: 0.35 },
+  SPD:    { Union: 0.24, nonvoters: 0.34, Linke: 0.14, AfD: 0.08, FDP: 0.07, Greens: 0.04 },
+  AfD:    { SPD: 0.16, FDP: 0.12, Union: 0.11, Greens: 0.03, Linke: 0.04, nonvoters: 0.54 },
+  Greens: { Union: 0.22, SPD: 0.20, Linke: 0.14, FDP: 0.08, AfD: 0.01, nonvoters: 0.35 },
+  Linke:  { SPD: 0.26, Greens: 0.22, nonvoters: 0.30, AfD: 0.06, FDP: 0.05, Union: 0.04 },
+  FDP:    { Union: 0.28, AfD: 0.09, SPD: 0.09, Linke: 0.04, Greens: 0.03, nonvoters: 0.47 },
   // BSW didn't exist in 2021 — model it as drawing from disaffected Linke/SPD voters and non-voters
-  BSW:    { Linke: 0.55, SPD: 0.20, nonvoters: 0.25 },
+  BSW:    { Linke: 0.40, SPD: 0.15, nonvoters: 0.45 },
   // FW and SSW are small regional parties — draw from Union/SPD and non-voters
-  FW:     { Union: 0.50, SPD: 0.20, nonvoters: 0.30 },
-  SSW:    { SPD: 0.45, Greens: 0.30, nonvoters: 0.25 },
+  FW:     { Union: 0.35, SPD: 0.14, nonvoters: 0.51 },
+  SSW:    { SPD: 0.32, Greens: 0.22, nonvoters: 0.46 },
 };
 
 function getCampaignFlowMatrix() {
@@ -12441,12 +12456,15 @@ function applyCampaignPollShift(partyId, delta) {
   const currentPoll = Math.max(0.5, gameState.polls?.[partyId] || getBasePolling(partyId));
 
   if (delta > 0) {
-    // Siphon the full gain from other parties weighted by the flow matrix.
+    // Only siphon the share of gains that comes from active parties, not non-voters.
+    // A party with nonvoters:0.33 in its gain weights is mobilising ~33% of growth
+    // from previously non-voting people — that portion doesn't drain any active party.
     const gainWeights = getCampaignFlowWeightsForGain(partyId);
-    // Remove the nonvoter key so gains come only from active parties.
+    const nonvoterShare = Math.min(0.60, Math.max(0, Number(gainWeights.nonvoters) || 0));
+    const activePartyShare = 1 - nonvoterShare;
     const partyOnlyWeights = { ...gainWeights };
     delete partyOnlyWeights.nonvoters;
-    siphonCampaignPollTransfer(delta, partyOnlyWeights, partyId);
+    siphonCampaignPollTransfer(delta * activePartyShare, partyOnlyWeights, partyId);
     gameState.polls[partyId] = Math.max(0.5, currentPoll + delta);
     return;
   }
@@ -15099,17 +15117,19 @@ function runAITurns(issue) {
 
     // Cap single-week AI boost — tighter ceiling now that the pool is zero-sum:
     // a party can only rise at the expense of rivals, so big swings are meaningful.
-    boost = Math.max(-1.00, Math.min(0.70, boost * tempoProfile.volatility));
+    boost = Math.max(-0.80, Math.min(0.50, boost * tempoProfile.volatility));
 
     // ── RESISTANCE: Mean-reversion bites harder the further a party strays ──────
     const deviation = currentPoll - baseRef;
     if      (deviation > 12) boost -= 0.35;
     else if (deviation > 8)  boost -= 0.22;
     else if (deviation > 5)  boost -= 0.12;
-    else if (deviation < -14) boost += 0.42;
-    else if (deviation < -10) boost += 0.30;
-    else if (deviation < -6)  boost += 0.18;
-    else if (deviation < -3)  boost += 0.08;
+    // Tighter downward thresholds: large parties (Union, SPD) recover sooner
+    // rather than needing a -6pp deficit before reversion kicks in.
+    else if (deviation < -12) boost += 0.46;
+    else if (deviation < -8)  boost += 0.32;
+    else if (deviation < -4)  boost += 0.20;
+    else if (deviation < -2)  boost += 0.10;
 
     // ── SCRUTINY: Hot streaks attract visible media pressure instead of hidden random scandals ──
     if (!gameState._aiStreak) gameState._aiStreak = {};
